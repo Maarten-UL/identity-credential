@@ -8,13 +8,13 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.android.mdl.app.R
 import com.android.mdl.app.document.DocumentManager
+import com.android.mdl.app.selfsigned.SelfSignedDocumentData
 import com.android.mdl.app.util.DocumentData.EU_PID_DOCTYPE
 import com.android.mdl.app.util.DocumentData.MDL_DOCTYPE
 import com.android.mdl.app.util.DocumentData.MICOV_DOCTYPE
 import com.android.mdl.app.util.DocumentData.MVR_DOCTYPE
 import com.android.mdl.app.util.Field
 import com.android.mdl.app.util.FieldType
-import com.android.mdl.app.util.SelfSignedDocumentData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,11 +53,11 @@ class SelfSignedViewModel(val app: Application) :
         fieldsMdl.add(Field(id++, "Birth Date", "birth_date", FieldType.DATE, "1971-09-01"))
         fieldsMdl.add(Field(id++, "Issue Date", "issue_date", FieldType.DATE, "2021-04-18"))
         fieldsMdl.add(Field(id++, "Expiry Date", "expiry_date", FieldType.DATE, "2026-04-18"))
-        fieldsMdl.add(Field(id++, "Issuing Country", "issuing_country", FieldType.STRING, "UT"))
+        fieldsMdl.add(Field(id++, "Issuing Country", "issuing_country", FieldType.STRING, "US"))
         fieldsMdl.add(Field(id++, "Issuing Authority", "issuing_authority", FieldType.STRING, "Google"))
         fieldsMdl.add(Field(id++, "Document Number", "document_number", FieldType.STRING, "987654321"))
         fieldsMdl.add(Field(id++, "Signature", "signature_usual_mark", FieldType.BITMAP, signature))
-        fieldsMdl.add(Field(id++, "UN Distinguishing Sign", "un_distinguishing_sign", FieldType.STRING, "UT"))
+        fieldsMdl.add(Field(id++, "UN Distinguishing Sign", "un_distinguishing_sign", FieldType.STRING, "US"))
         fieldsMdl.add(Field(id++, "Age Over 18", "age_over_18", FieldType.BOOLEAN, "true"))
         fieldsMdl.add(Field(id++, "Age Over 21", "age_over_21", FieldType.BOOLEAN, "true"))
         fieldsMdl.add(Field(id++, "Sex", "sex", FieldType.STRING, "2"))
@@ -200,14 +200,14 @@ class SelfSignedViewModel(val app: Application) :
         }
     }
 
-    fun createSelfSigned(dData: SelfSignedDocumentData) {
+    fun createSelfSigned(documentData: SelfSignedDocumentData) {
         loading.value = View.VISIBLE
-        viewModelScope.launch (Dispatchers.IO) {
-            documentManager.createSelfSignedCredential(dData)
-            withContext(Dispatchers.Main) {
-                created.value = true
-                loading.value = View.GONE
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                documentManager.createSelfSignedDocument(documentData)
             }
+            created.value = true
+            loading.value = View.GONE
         }
     }
 

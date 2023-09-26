@@ -17,11 +17,12 @@
 package com.android.identity.credential;
 
 import com.android.identity.internal.Util;
-import com.android.identity.keystore.BouncyCastleKeystore;
-import com.android.identity.keystore.KeystoreEngine;
-import com.android.identity.keystore.KeystoreEngineRepository;
+import com.android.identity.securearea.BouncyCastleSecureArea;
+import com.android.identity.securearea.SecureArea;
+import com.android.identity.securearea.SecureAreaRepository;
 import com.android.identity.storage.EphemeralStorageEngine;
 import com.android.identity.storage.StorageEngine;
+import com.android.identity.util.ApplicationData;
 import com.android.identity.util.Timestamp;
 
 import org.junit.Assert;
@@ -36,17 +37,17 @@ import java.util.Locale;
 public class CredentialStoreTest {
     StorageEngine mStorageEngine;
 
-    KeystoreEngine mKeystoreEngine;
+    SecureArea mSecureArea;
 
-    KeystoreEngineRepository mKeystoreEngineRepository;
+    SecureAreaRepository mSecureAreaRepository;
 
     @Before
     public void setup() {
         mStorageEngine = new EphemeralStorageEngine();
 
-        mKeystoreEngineRepository = new KeystoreEngineRepository();
-        mKeystoreEngine = new BouncyCastleKeystore(mStorageEngine);
-        mKeystoreEngineRepository.addImplementation(mKeystoreEngine);
+        mSecureAreaRepository = new SecureAreaRepository();
+        mSecureArea = new BouncyCastleSecureArea(mStorageEngine);
+        mSecureAreaRepository.addImplementation(mSecureArea);
     }
 
     @Test
@@ -54,13 +55,13 @@ public class CredentialStoreTest {
         mStorageEngine.deleteAll();
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Assert.assertEquals(0, credentialStore.listCredentials().size());
         for (int n = 0; n < 10; n++) {
             credentialStore.createCredential(
                     "testCred" + n,
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
         }
         Assert.assertEquals(10, credentialStore.listCredentials().size());
         credentialStore.deleteCredential("testCred1");
@@ -79,11 +80,11 @@ public class CredentialStoreTest {
 
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
         Assert.assertEquals("testCredential", credential.getName());
         List<X509Certificate> certChain = credential.getAttestation();
         Assert.assertTrue(certChain.size() >= 1);
@@ -102,7 +103,7 @@ public class CredentialStoreTest {
         // Check creating a credential with an existing name overwrites the existing one
         credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
         Assert.assertEquals("testCredential", credential.getName());
         // At least the leaf certificate should be different
         List<X509Certificate> certChain3 = credential.getAttestation();
@@ -120,11 +121,11 @@ public class CredentialStoreTest {
     public void testNameSpacedData() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         // After creation, NameSpacedData is present but empty.
         Assert.assertEquals(0, credential.getNameSpacedData().getNameSpaceNames().size());
@@ -153,11 +154,11 @@ public class CredentialStoreTest {
     public void testAuthenticationKeyUsage() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         Timestamp timeBeforeValidity = Timestamp.ofEpochMilli(40);
         Timestamp timeValidityBegin = Timestamp.ofEpochMilli(50);
@@ -175,7 +176,7 @@ public class CredentialStoreTest {
         // Create ten authentication keys...
         for (int n = 0; n < 10; n++) {
             credential.createPendingAuthenticationKey(
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                     null);
         }
         Assert.assertEquals(0, credential.getAuthenticationKeys().size());
@@ -246,7 +247,7 @@ public class CredentialStoreTest {
         // Create and certify five replacements
         for (n = 0; n < 5; n++) {
             credential.createPendingAuthenticationKey(
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                     null);
         }
         Assert.assertEquals(10, credential.getAuthenticationKeys().size());
@@ -297,11 +298,11 @@ public class CredentialStoreTest {
 
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         Assert.assertEquals(0, credential.getAuthenticationKeys().size());
         Assert.assertEquals(0, credential.getPendingAuthenticationKeys().size());
@@ -309,7 +310,7 @@ public class CredentialStoreTest {
         // Create ten pending auth keys and certify four of them
         for (n = 0; n < 4; n++) {
             credential.createPendingAuthenticationKey(
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                     null);
         }
         Assert.assertEquals(0, credential.getAuthenticationKeys().size());
@@ -333,7 +334,7 @@ public class CredentialStoreTest {
         Assert.assertEquals(0, credential.getPendingAuthenticationKeys().size());
         for (n = 0; n < 6; n++) {
             credential.createPendingAuthenticationKey(
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                     null);
         }
         Assert.assertEquals(4, credential.getAuthenticationKeys().size());
@@ -374,11 +375,11 @@ public class CredentialStoreTest {
     public void testAuthenticationKeyValidity() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         // We want to check the behavior for when the holder has a birthday and the issuer
         // carefully sends half the MSOs to be used before the birthday (with age_in_years set to
@@ -399,7 +400,7 @@ public class CredentialStoreTest {
         int n;
         for (n = 0; n < 10; n++) {
             credential.createPendingAuthenticationKey(
-                    new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                    new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                     null);
         }
         Assert.assertEquals(10, credential.getPendingAuthenticationKeys().size());
@@ -451,77 +452,100 @@ public class CredentialStoreTest {
     public void testApplicationData() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         // After creation, NameSpacedData is present but empty.
         Assert.assertEquals(0, credential.getNameSpacedData().getNameSpaceNames().size());
 
-        Assert.assertNull(credential.getApplicationData("key1"));
-        Assert.assertNull(credential.getApplicationData("key2"));
+        ApplicationData appData = credential.getApplicationData();
+        Assert.assertFalse(appData.keyExists("key1"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> appData.getData("key1"));
+        Assert.assertFalse(appData.keyExists("key2"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> appData.getData("key2"));
 
-        credential.setApplicationDataString("key1", "value1");
-        Assert.assertEquals("value1", credential.getApplicationDataString("key1"));
+        appData.setString("key1", "value1");
+        Assert.assertEquals("value1", credential.getApplicationData()
+                .getString("key1"));
 
-        credential.setApplicationDataString("key2", "value2");
-        Assert.assertEquals("value2", credential.getApplicationDataString("key2"));
+        appData.setString("key2", "value2");
+        Assert.assertEquals("value2", credential.getApplicationData()
+                .getString("key2"));
 
-        credential.setApplicationData("key3", new byte[]{1, 2, 3, 4});
-        Assert.assertArrayEquals(new byte[]{1, 2, 3, 4}, credential.getApplicationData("key3"));
+        appData.setData("key3", new byte[]{1, 2, 3, 4});
+        Assert.assertArrayEquals(new byte[]{1, 2, 3, 4}, credential.getApplicationData()
+                .getData("key3"));
 
-        credential.setApplicationData("key2", null);
-        Assert.assertNull(credential.getApplicationData("key2"));
+        appData.setData("key2", (byte[]) null);
+        Assert.assertFalse(credential.getApplicationData().keyExists("key2"));
+        Assert.assertThrows(IllegalArgumentException.class, () ->
+                credential.getApplicationData().getData("key2"));
 
         // Load the credential again and check that data is still there
         Credential loadedCredential = credentialStore.lookupCredential("testCredential");
         Assert.assertNotNull(loadedCredential);
         Assert.assertEquals("testCredential", loadedCredential.getName());
 
-        Assert.assertEquals("value1", credential.getApplicationDataString("key1"));
-        Assert.assertNull(credential.getApplicationData("key2"));
-        Assert.assertArrayEquals(new byte[]{1, 2, 3, 4}, credential.getApplicationData("key3"));
+        Assert.assertEquals("value1", loadedCredential.getApplicationData()
+                .getString("key1"));
+        Assert.assertFalse(loadedCredential.getApplicationData().keyExists("key2"));
+        Assert.assertThrows(IllegalArgumentException.class, () ->
+                loadedCredential.getApplicationData().getData("key2"));
+        Assert.assertArrayEquals(new byte[]{1, 2, 3, 4}, loadedCredential.getApplicationData()
+                .getData("key3"));
     }
 
     @Test
     public void testAuthKeyApplicationData() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
-        KeystoreEngine.CreateKeySettings authKeySettings =
-                new BouncyCastleKeystore.CreateKeySettings.Builder()
+        SecureArea.CreateKeySettings authKeySettings =
+                new BouncyCastleSecureArea.CreateKeySettings.Builder()
                         .build();
         for (int n = 0; n < 10; n++) {
             Credential.PendingAuthenticationKey pendingAuthKey =
                     credential.createPendingAuthenticationKey(
-                            new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                            new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                             null);
             String value = String.format(Locale.US, "bar%02d", n);
-            pendingAuthKey.setApplicationDataString("foo", value);
-            pendingAuthKey.setApplicationData("bar", new byte[0]);
-            Assert.assertEquals(value, pendingAuthKey.getApplicationDataString("foo"));
-            Assert.assertEquals(0, pendingAuthKey.getApplicationDataString("bar").length());
-            Assert.assertNull(pendingAuthKey.getApplicationDataString("non-existent"));
+            ApplicationData pendingAppData = pendingAuthKey.getApplicationData();
+            pendingAppData.setString("foo", value);
+            pendingAppData.setData("bar", new byte[0]);
+            Assert.assertEquals(value, pendingAppData.getString("foo"));
+            Assert.assertEquals(0, pendingAppData.getData("bar").length);
+            Assert.assertFalse(pendingAppData.keyExists("non-existent"));
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    pendingAppData.getString("non-existent"));
         }
         Assert.assertEquals(10, credential.getPendingAuthenticationKeys().size());
         Assert.assertEquals(0, credential.getAuthenticationKeys().size());
 
         // Check that it's persisted to disk.
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         credential = credentialStore.lookupCredential("testCredential");
         Assert.assertEquals(10, credential.getPendingAuthenticationKeys().size());
         int n = 0;
         for (Credential.PendingAuthenticationKey pendingAuthKey : credential.getPendingAuthenticationKeys()) {
             String value = String.format(Locale.US, "bar%02d", n++);
-            Assert.assertEquals(value, pendingAuthKey.getApplicationDataString("foo"));
-            Assert.assertEquals(0, pendingAuthKey.getApplicationDataString("bar").length());
-            Assert.assertNull(pendingAuthKey.getApplicationDataString("non-existent"));
+            ApplicationData pendingAppData = pendingAuthKey.getApplicationData();
+            Assert.assertEquals(value, pendingAppData.getString("foo"));
+            Assert.assertEquals(0, pendingAppData.getData("bar").length);
+            Assert.assertFalse(pendingAppData.keyExists("non-existent"));
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    pendingAppData.getString("non-existent"));
         }
 
         // Certify and check that data carries over from PendingAuthenticationKey
@@ -529,24 +553,33 @@ public class CredentialStoreTest {
         n = 0;
         for (Credential.PendingAuthenticationKey pendingAuthKey : credential.getPendingAuthenticationKeys()) {
             String value = String.format(Locale.US, "bar%02d", n++);
-            Assert.assertEquals(value, pendingAuthKey.getApplicationDataString("foo"));
-            Assert.assertEquals(0, pendingAuthKey.getApplicationDataString("bar").length());
-            Assert.assertNull(pendingAuthKey.getApplicationDataString("non-existent"));
+            ApplicationData pendingAppData = pendingAuthKey.getApplicationData();
+            Assert.assertEquals(value, pendingAppData.getString("foo"));
+            Assert.assertEquals(0, pendingAppData.getData("bar").length);
+            Assert.assertFalse(pendingAppData.keyExists("non-existent"));
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    pendingAppData.getString("non-existent"));
             Credential.AuthenticationKey authKey = pendingAuthKey.certify(new byte[] {0, (byte) n},
                     Timestamp.ofEpochMilli(100),
                     Timestamp.ofEpochMilli(200));
-            Assert.assertEquals(value, authKey.getApplicationDataString("foo"));
-            Assert.assertEquals(0, authKey.getApplicationDataString("bar").length());
-            Assert.assertNull(authKey.getApplicationDataString("non-existent"));
+            ApplicationData appData = authKey.getApplicationData();
+            Assert.assertEquals(value, appData.getString("foo"));
+            Assert.assertEquals(0, appData.getData("bar").length);
+            Assert.assertFalse(appData.keyExists("non-existent"));
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    appData.getString("non-existent"));
         }
 
         // Check it's persisted to disk.
         n = 0;
         for (Credential.AuthenticationKey authKey : credential.getAuthenticationKeys()) {
             String value = String.format(Locale.US, "bar%02d", n++);
-            Assert.assertEquals(value, authKey.getApplicationDataString("foo"));
-            Assert.assertEquals(0, authKey.getApplicationDataString("bar").length());
-            Assert.assertNull(authKey.getApplicationDataString("non-existent"));
+            ApplicationData appData = authKey.getApplicationData();
+            Assert.assertEquals(value, appData.getString("foo"));
+            Assert.assertEquals(0, appData.getData("bar").length);
+            Assert.assertFalse(appData.keyExists("non-existent"));
+            Assert.assertThrows(IllegalArgumentException.class, () ->
+                    appData.getString("non-existent"));
         }
     }
 
@@ -554,22 +587,22 @@ public class CredentialStoreTest {
     public void testAuthKeyReplacement() {
         CredentialStore credentialStore = new CredentialStore(
                 mStorageEngine,
-                mKeystoreEngineRepository);
+                mSecureAreaRepository);
 
         Credential credential = credentialStore.createCredential(
                 "testCredential",
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build());
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build());
 
         Assert.assertEquals(0, credential.getAuthenticationKeys().size());
         Assert.assertEquals(0, credential.getPendingAuthenticationKeys().size());
 
-        KeystoreEngine.CreateKeySettings authKeySettings =
-                new BouncyCastleKeystore.CreateKeySettings.Builder()
+        SecureArea.CreateKeySettings authKeySettings =
+                new BouncyCastleSecureArea.CreateKeySettings.Builder()
                         .build();
         for (int n = 0; n < 10; n++) {
             Credential.PendingAuthenticationKey pendingAuthKey =
                     credential.createPendingAuthenticationKey(
-                            new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                            new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                             null);
             pendingAuthKey.certify(new byte[] {0, (byte) n},
                     Timestamp.ofEpochMilli(100),
@@ -583,7 +616,7 @@ public class CredentialStoreTest {
         Assert.assertArrayEquals(new byte[] {0, 5}, keyToReplace.getIssuerProvidedData());
         Credential.PendingAuthenticationKey pendingAuthKey =
                 credential.createPendingAuthenticationKey(
-                        new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                        new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                         keyToReplace);
         // ... it's not replaced until certify() is called
         Assert.assertEquals(1, credential.getPendingAuthenticationKeys().size());
@@ -620,7 +653,7 @@ public class CredentialStoreTest {
         Credential.AuthenticationKey toBeReplaced = credential.getAuthenticationKeys().get(0);
         Credential.PendingAuthenticationKey replacement =
                 credential.createPendingAuthenticationKey(
-                        new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                        new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                         toBeReplaced);
         Assert.assertEquals(toBeReplaced, replacement.getReplacementFor());
         Assert.assertEquals(replacement, toBeReplaced.getReplacement());
@@ -630,7 +663,7 @@ public class CredentialStoreTest {
         // Similarly, test the case where the key to be replaced is prematurely deleted.
         // The replacement key should no longer indicate it's a replacement key.
         replacement = credential.createPendingAuthenticationKey(
-                new BouncyCastleKeystore.CreateKeySettings.Builder().build(),
+                new BouncyCastleSecureArea.CreateKeySettings.Builder().build(),
                 toBeReplaced);
         Assert.assertEquals(toBeReplaced, replacement.getReplacementFor());
         Assert.assertEquals(replacement, toBeReplaced.getReplacement());

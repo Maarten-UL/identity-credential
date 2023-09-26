@@ -12,12 +12,14 @@ import com.android.identity.util.Constants.DEVICE_RESPONSE_STATUS_OK
 import com.android.identity.android.legacy.CredentialInvalidatedException
 import com.android.identity.mdoc.response.DeviceResponseGenerator
 import com.android.identity.mdoc.request.DeviceRequestParser
+import com.android.identity.securearea.SecureArea
 import com.android.mdl.app.R
 import com.android.mdl.app.authconfirmation.RequestedDocumentData
 import com.android.mdl.app.authconfirmation.RequestedElement
 import com.android.mdl.app.authconfirmation.SignedElementsCollection
-import com.android.mdl.app.document.Document
+import com.android.mdl.app.document.DocumentInformation
 import com.android.mdl.app.document.DocumentManager
+import com.android.mdl.app.transfer.AddDocumentToResponseResult
 import com.android.mdl.app.transfer.TransferManager
 import com.android.mdl.app.util.TransferStatus
 import com.android.mdl.app.util.logWarning
@@ -30,7 +32,7 @@ class TransferDocumentViewModel(val app: Application) : AndroidViewModel(app) {
     private val signedElements = SignedElementsCollection()
     private val requestedElements = mutableListOf<RequestedDocumentData>()
     private val closeConnectionMutableLiveData = MutableLiveData<Boolean>()
-    private val selectedDocuments = mutableListOf<Document>()
+    private val selectedDocuments = mutableListOf<DocumentInformation>()
 
     var inProgress = ObservableInt(View.GONE)
     var documentsSent = ObservableField<String>()
@@ -84,11 +86,10 @@ class TransferDocumentViewModel(val app: Application) : AndroidViewModel(app) {
                 val issuerSignedEntriesToRequest = requestedElementsFrom(requestedDocument)
                 result.add(
                     RequestedDocumentData(
-                        ownDocument.userVisibleName,
-                        ownDocument.identityCredentialName,
-                        false,
-                        issuerSignedEntriesToRequest,
-                        requestedDocument
+                        userReadableName = ownDocument.userVisibleName,
+                        identityCredentialName = ownDocument.docName,
+                        requestedElements = issuerSignedEntriesToRequest,
+                        requestedDocument = requestedDocument
                     )
                 )
             } catch (e: NoSuchElementException) {
@@ -98,23 +99,26 @@ class TransferDocumentViewModel(val app: Application) : AndroidViewModel(app) {
         requestedElements.addAll(result)
     }
 
-    // Returns true if a response was sent, false if additional auth is needed
-    fun sendResponseForSelection(): Boolean {
+    fun sendResponseForSelection(
+        keyUnlockData: SecureArea.KeyUnlockData? = null
+    ): AddDocumentToResponseResult {
         val elementsToSend = signedElements.collect()
-        val response = DeviceResponseGenerator(DEVICE_RESPONSE_STATUS_OK)
+        val responseGenerator = DeviceResponseGenerator(DEVICE_RESPONSE_STATUS_OK)
+        var signingKeyOverused = false
         elementsToSend.forEach { signedDocument ->
             try {
                 val issuerSignedEntries = signedDocument.issuerSignedEntries()
-                val authNeeded = transferManager.addDocumentToResponse(
+                val result = transferManager.addDocumentToResponse(
                     signedDocument.identityCredentialName,
                     signedDocument.documentType,
                     issuerSignedEntries,
-                    response,
-                    signedDocument.readerAuth,
-                    signedDocument.itemsRequest
+                    responseGenerator,
+                    keyUnlockData
                 )
-                if (authNeeded) {
-                    return false
+                if (result !is AddDocumentToResponseResult.DocumentAdded) {
+                    return result
+                } else {
+                    signingKeyOverused = result.signingKeyUsageLimitPassed
                 }
             } catch (e: CredentialInvalidatedException) {
                 logWarning("Credential '${signedDocument.identityCredentialName}' is invalid. Deleting.")
@@ -126,12 +130,12 @@ class TransferDocumentViewModel(val app: Application) : AndroidViewModel(app) {
                 logWarning("No requestedDocument for " + signedDocument.documentType)
             }
         }
-        transferManager.sendResponse(response.generate(), PreferencesHelper.isConnectionAutoCloseEnabled())
+        transferManager.sendResponse(responseGenerator.generate(), PreferencesHelper.isConnectionAutoCloseEnabled())
         transferManager.setResponseServed()
         val documentsCount = elementsToSend.count()
         documentsSent.set(app.getString(R.string.txt_documents_sent, documentsCount))
         cleanUp()
-        return true
+        return AddDocumentToResponseResult.DocumentAdded(signingKeyOverused)
     }
 
     fun cancelPresentation(

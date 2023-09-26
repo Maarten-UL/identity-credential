@@ -21,7 +21,7 @@ import androidx.annotation.Nullable;
 
 import androidx.annotation.VisibleForTesting;
 
-import com.android.identity.keystore.KeystoreEngine;
+import com.android.identity.securearea.SecureArea;
 import com.android.identity.util.Logger;
 import com.android.identity.util.Timestamp;
 import org.bouncycastle.asn1.ASN1Encodable;
@@ -41,9 +41,11 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
@@ -245,7 +247,13 @@ public class Util {
     }
 
     public static boolean cborDecodeBoolean(@NonNull byte[] data) {
-        SimpleValue simple = (SimpleValue) cborDecode(data);
+        SimpleValue simple;
+        try {
+            simple = (SimpleValue) cborDecode(data);
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Data given cannot be cast into a boolean.", e);
+        }
+
         return simple.getSimpleValueType() == SimpleValueType.TRUE;
     }
 
@@ -609,14 +617,14 @@ public class Util {
     }
 
     public static @NonNull
-    DataItem coseSign1Sign(@NonNull KeystoreEngine keystoreEngine,
+    DataItem coseSign1Sign(@NonNull SecureArea secureArea,
                            @NonNull String alias,
-                           @KeystoreEngine.Algorithm int signatureAlgorithm,
-                           @Nullable KeystoreEngine.KeyUnlockData keyUnlockData,
+                           @SecureArea.Algorithm int signatureAlgorithm,
+                           @Nullable SecureArea.KeyUnlockData keyUnlockData,
                            @Nullable byte[] data,
                            @Nullable byte[] detachedContent,
                            @Nullable Collection<X509Certificate> certificateChain)
-            throws KeystoreEngine.KeyLockedException {
+            throws SecureArea.KeyLockedException {
 
         int dataLen = (data != null ? data.length : 0);
         int detachedContentLen = (detachedContent != null ? detachedContent.length : 0);
@@ -630,7 +638,7 @@ public class Util {
         byte[] protectedHeadersBytes = cborEncode(protectedHeaders.build().get(0));
 
         byte[] toBeSigned = coseBuildToBeSigned(protectedHeadersBytes, data, detachedContent);
-        byte[] derSignature = keystoreEngine.sign(alias, signatureAlgorithm, toBeSigned, keyUnlockData);
+        byte[] derSignature = secureArea.sign(alias, signatureAlgorithm, toBeSigned, keyUnlockData);
         byte[] coseSignature = signatureDerToCose(derSignature, 32); // TODO: infer from alias
 
         CborBuilder builder = new CborBuilder();
@@ -1153,6 +1161,11 @@ public class Util {
             throw new IllegalArgumentException("Expected item");
         }
         return item;
+    }
+
+    public static
+    @SecureArea.EcCurve int coseKeyGetCurve(@NonNull DataItem coseKey) {
+        return (int) cborMapExtractNumber(coseKey, COSE_KEY_EC2_CRV);
     }
 
     public static @NonNull
@@ -1931,6 +1944,46 @@ public class Util {
                     + "characteristic value size", mtuSize, characteristicValueSize));
         }
         return characteristicValueSize;
+    }
+
+    public static @NonNull KeyPair createEphemeralKeyPair(@SecureArea.EcCurve int curve) {
+        String stdName;
+        switch (curve) {
+            case SecureArea.EC_CURVE_P256:
+                stdName = "secp256r1";
+                break;
+            case SecureArea.EC_CURVE_P384:
+                stdName = "secp384r1";
+                break;
+            case SecureArea.EC_CURVE_P521:
+                stdName = "secp521r1";
+                break;
+            case SecureArea.EC_CURVE_BRAINPOOLP256R1:
+                stdName = "brainpoolP256r1";
+                break;
+            case SecureArea.EC_CURVE_BRAINPOOLP320R1:
+                stdName = "brainpoolP320r1";
+                break;
+            case SecureArea.EC_CURVE_BRAINPOOLP384R1:
+                stdName = "brainpoolP384r1";
+                break;
+            case SecureArea.EC_CURVE_BRAINPOOLP512R1:
+                stdName = "brainpoolP512r1";
+                break;
+            default:
+                throw new IllegalArgumentException("curve provided is not one of the supported curves");
+        }
+
+        try {
+            KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC");
+            ECGenParameterSpec ecSpec = new ECGenParameterSpec(stdName);
+            kpg.initialize(ecSpec);
+            KeyPair keyPair = kpg.generateKeyPair();
+            return keyPair;
+        } catch (NoSuchAlgorithmException
+                 | InvalidAlgorithmParameterException e) {
+            throw new IllegalStateException("Error generating ephemeral key-pair", e);
+        }
     }
 
 }
