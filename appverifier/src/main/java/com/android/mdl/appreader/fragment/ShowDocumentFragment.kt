@@ -19,13 +19,13 @@ import androidx.navigation.fragment.findNavController
 import com.android.identity.mdoc.response.DeviceResponseParser
 import com.android.mdl.appreader.R
 import com.android.mdl.appreader.databinding.FragmentShowDocumentBinding
-import com.android.mdl.appreader.issuerauth.SimpleIssuerTrustStore
+import com.android.mdl.appreader.issuerauth.TrustManagerImplementation
 import com.android.mdl.appreader.transfer.TransferManager
 import com.android.mdl.appreader.util.FormatUtil
-import com.android.mdl.appreader.util.KeysAndCertificates
 import com.android.mdl.appreader.util.TransferStatus
 import com.android.mdl.appreader.util.logDebug
 import java.security.MessageDigest
+import java.security.cert.PKIXCertPathChecker
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -158,9 +158,6 @@ class ShowDocumentFragment : Fragment() {
     private fun formatTextResult(documents: Collection<DeviceResponseParser.Document>): String {
         // Create the trustManager to validate the DS Certificate against the list of known
         // certificates in the app
-        val simpleIssuerTrustStore =
-            SimpleIssuerTrustStore(KeysAndCertificates.getTrustedIssuerCertificates(requireContext()))
-
         val sb = StringBuffer()
 
         for (doc in documents) {
@@ -185,16 +182,15 @@ class ShowDocumentFragment : Fragment() {
                 0xFFFFFF and requireContext().theme.attr(R.attr.colorPrimary).data
             )
             sb.append("<h3>Doctype: <font color=\"$color\">${doc.docType}</font></h3>")
-            val certPath =
-                simpleIssuerTrustStore.createCertificationTrustPath(doc.issuerCertificateChain.toList())
-            val isDSTrusted = simpleIssuerTrustStore.validateCertificationTrustPath(certPath)
-            // Use the issuer certificate chain if we could not build the certificate trust path
-            val certChain = if (certPath?.isNotEmpty() == true) {
-                certPath
-            } else {
-                doc.issuerCertificateChain.toList()
-            }
 
+            var certChain = doc.issuerCertificateChain.toList();
+            var isDSTrusted = true
+            try {
+                certChain = TrustManagerImplementation.getInstance(requireContext()).verify(doc.docType, certChain)
+            } catch (e: Exception){
+                sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${e.message}<br>")
+                isDSTrusted = false
+            }
             val issuerItems = certChain.last().issuerX500Principal.name.split(",")
             var cnFound = false
             val commonName = StringBuffer()
