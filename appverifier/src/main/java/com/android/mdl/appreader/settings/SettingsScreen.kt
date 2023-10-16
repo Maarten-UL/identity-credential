@@ -31,12 +31,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.android.mdl.appreader.R
+import com.android.mdl.appreader.issuerauth.CaCertificateStore
 import com.android.mdl.appreader.theme.ReaderAppTheme
+import java.security.cert.X509Certificate
 
 @Composable
 fun SettingsScreen(
@@ -51,11 +54,13 @@ fun SettingsScreen(
     onWifiAwareTransferChanged: (enabled: Boolean) -> Unit,
     onNfcTransferChanged: (enabled: Boolean) -> Unit,
     onDebugLoggingChanged: (enabled: Boolean) -> Unit,
-    onChangeReaderAuthentication: (which: Int) -> Unit
+    onChangeReaderAuthentication: (which: Int) -> Unit,
+    onAddCertificate: () -> Unit
 ) {
     Column(modifier = modifier) {
         val scrollState = rememberScrollState()
         var showReaderAuthOptions by rememberSaveable { mutableStateOf(false) }
+        var showCertificates by rememberSaveable { mutableStateOf(false) }
         Column(
             modifier = Modifier
                 .padding(vertical = 16.dp)
@@ -150,6 +155,26 @@ fun SettingsScreen(
                 title = "Use Reader Authentication",
                 subtitle = readerAuthenticationFor(screenState.readerAuthentication)
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingSectionTitle(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                title = "CA Certificates"
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            SettingItem(
+                modifier = Modifier
+                    .clickable(onClick = onAddCertificate)
+                    .padding((16.dp)),
+                title = "Add CA Certificate...",
+                subtitle = "Click here to add a CA Certificate"
+            )
+            SettingItem(
+                modifier = Modifier
+                    .clickable { showCertificates = true }
+                    .padding(16.dp),
+                title = "Show CA Certificates",
+                subtitle = "Click here to show the CA Certificates"
+            )
         }
         ReaderAuthenticationOptions(
             modifier = Modifier.fillMaxWidth(),
@@ -161,6 +186,9 @@ fun SettingsScreen(
             },
             onDismiss = { showReaderAuthOptions = false }
         )
+        Certificates(
+            show = showCertificates,
+            onDismiss = { showCertificates = false })
     }
 }
 
@@ -202,6 +230,51 @@ private fun ReaderAuthenticationOptions(
             },
         )
     }
+}
+
+@Composable
+private fun Certificates(
+    modifier: Modifier = Modifier,
+    show: Boolean,
+    onDismiss: () -> Unit
+) {
+    if (show) {
+        val listItems = CertificateList()
+        AlertDialog(
+            modifier = modifier,
+            onDismissRequest = onDismiss,
+            confirmButton = {},
+            dismissButton = {
+                Button(onClick = onDismiss) {
+                    Text(text = "OK")
+                }
+            },
+            text = {
+                LazyColumn {
+                    itemsIndexed(listItems) { index, item ->
+                        SettingItem(title = item, subtitle = "")
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "CA Certificates",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+        )
+    }
+}
+
+
+@Composable
+private fun CertificateList(modifier: Modifier = Modifier): List<String> {
+    val result = ArrayList<String>()
+    val certificates = CaCertificateStore.getAll(LocalContext.current)
+    for (certificate in certificates) {
+        result.add(certificate.subjectX500Principal.name)
+    }
+    return result
 }
 
 @Composable
@@ -335,7 +408,8 @@ private fun SettingsScreenPreview() {
             onWifiAwareTransferChanged = {},
             onNfcTransferChanged = {},
             onDebugLoggingChanged = {},
-            onChangeReaderAuthentication = {}
+            onChangeReaderAuthentication = {},
+            onAddCertificate = {}
         )
     }
 }

@@ -10,12 +10,6 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
     private val certificatesForAllDocTypes: MutableMap<X500Name, X509Certificate>
     private val certificatesByDocType: MutableMap<String, MutableMap<X500Name, X509Certificate>>
 
-    /**
-     * Call this after adding an item to the CertificateStore or the VicalStore
-     * */
-    fun resetSingleton() {
-        instance = null;
-    }
 
     /** Singleton TrustManager  */
     companion object {
@@ -36,6 +30,10 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
         addCertificatesFromResources()
         addCertificatesFromStore()
         addVicalsFromStore()
+    }
+
+    override fun reset() {
+        instance = null
     }
 
     override fun verify(chain: List<X509Certificate>): List<X509Certificate> {
@@ -63,7 +61,7 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
     private fun findTrustedRoot(chain: List<X509Certificate>, mdocType: String): X509Certificate? {
         chain.forEach { cert ->
             run {
-                val name = X500Name(cert.subjectX500Principal.name)
+                val name = X500Name(cert.issuerX500Principal.name)
                 // look first in the certificates for all mdoc types
                 if (certificatesForAllDocTypes.containsKey(name)) {
                     return certificatesForAllDocTypes[name]
@@ -124,7 +122,7 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
     }
 
     private fun addVicalsFromStore() {
-        TODO("get certificates by mdoc type from the vicals")
+        // TODO: get certificates by mdoc type from the vicals
         // VicalStore.getAll(context)
     }
 

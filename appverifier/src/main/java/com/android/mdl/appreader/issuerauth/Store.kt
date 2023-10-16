@@ -2,6 +2,7 @@ package com.android.mdl.appreader.issuerauth
 
 import android.content.Context
 import java.io.File
+import java.nio.file.Files
 
 /**
  * [Store] Base class for the validation, parsing and persistence of certificates or vicals
@@ -14,15 +15,15 @@ abstract class Store<T> {
     /**
      * Parse, validate and persist an item
      */
-    fun save(context: Context, name: String, content: ByteArray) {
-        var item = parse(content)
+    fun save(context: Context, content: ByteArray) {
+        val item = parse(content)
         validate(item)
-        var fileName = sanitizeFilename("${determineFileName(item)}.$extension")
+        val fileName = sanitizeFilename("${determineFileName(item)}$extension")
         val file = File(context.getDir(folderName, Context.MODE_PRIVATE), fileName)
         if (file.exists()) {
             // TODO: throw exception???
         } else {
-            file.writeBytes(content);
+            file.writeBytes(content)
         }
     }
 
@@ -31,10 +32,14 @@ abstract class Store<T> {
      */
     fun getAll(context: Context): List<T> {
         val result = ArrayList<T>()
-        context.getDir(folderName, Context.MODE_PRIVATE).walkTopDown().forEach {
-            result.add(parse(it.readBytes()))
+        val directory = context.getDir(folderName, Context.MODE_PRIVATE)
+        if (directory.exists()) {
+            directory.walk()
+                .filter { file -> Files.isRegularFile(file.toPath()) }
+                .filter { file -> file.toString().endsWith(extension) }
+                .forEach { result.add(parse(it.readBytes())) }
         }
-        return result;
+        return result
     }
 
     /**
@@ -50,7 +55,7 @@ abstract class Store<T> {
     /**
      * Determine the filename (without extension)
      */
-    protected abstract fun determineFileName(item: T):String
+    protected abstract fun determineFileName(item: T): String
 
     /**
      * Replace reserved characters in the file name with underscores
