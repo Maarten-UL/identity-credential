@@ -30,17 +30,8 @@ object CertificateValidations {
         // check if the certificate is currently valid
         // NOTE does not check if it is valid within the validity period of the issuing
         // CA
-        try {
-            certificate.checkValidity()
-            // NOTE throws multiple exceptions derived from CertificateException
-        } catch (e: CertificateException) {
-            throw CertificateException(
-                "Certificate '${
-                    certificate.subjectX500Principal.name
-                }' is currently not valid. It is valid from ${certificate.notBefore} to ${certificate.notAfter}"
-            )
-        }
-
+        certificate.checkValidity()
+        // NOTE throws multiple exceptions derived from CertificateException
     }
 
     /**
