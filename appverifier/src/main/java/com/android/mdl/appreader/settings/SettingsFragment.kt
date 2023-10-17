@@ -13,9 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
-import com.android.mdl.appreader.issuerauth.CaCertificateStore
-import com.android.mdl.appreader.issuerauth.TrustManagerImplementation
 import com.android.mdl.appreader.theme.ReaderAppTheme
 
 class SettingsFragment : Fragment() {
@@ -28,12 +27,7 @@ class SettingsFragment : Fragment() {
         SettingsViewModel.factory(userPreferences)
     }
 
-    private val browseCertificateLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) {
-        uri ->
-        if (uri != null) {
-            importCertificate(uri)
-        }
-    }
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -58,27 +52,17 @@ class SettingsFragment : Fragment() {
                         onNfcTransferChanged = viewModel::onNfcTransferUpdated,
                         onDebugLoggingChanged = viewModel::onDebugLoggingUpdated,
                         onChangeReaderAuthentication = viewModel::onReaderAuthenticationUpdated,
-                        onAddCertificate = { fileDialog() }
+                        onOpenCaCertificates = {openCaCertificates()}
                     )
                 }
             }
         }
     }
 
-    private fun fileDialog(){
-        browseCertificateLauncher.launch(arrayOf("*/*")) // TODO: maybe more specific...
+    private fun openCaCertificates(){
+        val destination = SettingsFragmentDirections.toCaCertificates()
+        findNavController().navigate(destination)
     }
 
-    private fun importCertificate(uri: Uri){
-        try {
-        val inputStream = this.requireContext().contentResolver.openInputStream(uri)
-        if (inputStream != null) {
-            CaCertificateStore.save(requireContext(), inputStream.readBytes() )
-            // force the trust manager to reload the certificates
-            TrustManagerImplementation.getInstance(requireContext()).reset()
-            Toast.makeText(requireContext(), "CA Certificate Loaded", Toast.LENGTH_SHORT)
-        }} catch (e:Throwable){
-            // TODO: how to show errors?
-        }
-    }
+
 }

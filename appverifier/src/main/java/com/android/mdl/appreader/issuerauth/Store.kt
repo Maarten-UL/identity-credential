@@ -7,19 +7,20 @@ import java.nio.file.Files
 /**
  * [Store] Base class for the validation, parsing and persistence of certificates or vicals
  */
-abstract class Store<T> {
+abstract class Store<T>(val context: Context) {
 
     abstract val folderName: String
     abstract val extension: String
+    private val directory: File = context.getDir(folderName, Context.MODE_PRIVATE)
 
     /**
      * Parse, validate and persist an item
      */
-    fun save(context: Context, content: ByteArray) {
+    fun save(content: ByteArray) {
         val item = parse(content)
         validate(item)
         val fileName = sanitizeFilename("${determineFileName(item)}$extension")
-        val file = File(context.getDir(folderName, Context.MODE_PRIVATE), fileName)
+        val file = File(directory, fileName)
         if (file.exists()) {
             // TODO: throw exception???
         } else {
@@ -30,16 +31,16 @@ abstract class Store<T> {
     /**
      * Retrieve and parse all the items in the folder
      */
-    fun getAll(context: Context): List<T> {
-        val result = ArrayList<T>()
-        val directory = context.getDir(folderName, Context.MODE_PRIVATE)
-        if (directory.exists()) {
-            directory.walk()
-                .filter { file -> Files.isRegularFile(file.toPath()) }
-                .filter { file -> file.toString().endsWith(extension) }
-                .forEach { result.add(parse(it.readBytes())) }
+    fun getAll(): List<T> {
+        return readFiles().map { parse(it.readBytes()) }.toList()
+    }
+
+    fun delete(item: T){
+        val fileName = sanitizeFilename("${determineFileName(item)}$extension")
+        val file = File(directory, fileName)
+        if (file.exists()) {
+            file.delete()
         }
-        return result
     }
 
     /**
@@ -61,6 +62,21 @@ abstract class Store<T> {
      * Replace reserved characters in the file name with underscores
      */
     private fun sanitizeFilename(filename: String): String {
-        return filename.replace("[^a-zA-Z0-9.-=]".toRegex(), "_")
+        return filename.replace("[^a-zA-Z0-9.-=, ]".toRegex(), "_")
+    }
+
+    /**
+     * List all the files in the folder
+     */
+    private fun readFiles(): List<File>
+    {
+        val result = ArrayList<File>()
+        if (directory.exists()) {
+            directory.walk()
+                .filter { file -> Files.isRegularFile(file.toPath()) }
+                .filter { file -> file.toString().endsWith(extension) }
+                .forEach { result.add(it) }
+        }
+        return result
     }
 }

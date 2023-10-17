@@ -1,60 +1,41 @@
 package com.android.mdl.appreader.issuerauth
 
 import android.content.Context
+import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.util.KeysAndCertificates
 import org.bouncycastle.asn1.x500.X500Name
 import java.security.cert.PKIXCertPathChecker
 import java.security.cert.X509Certificate
 
+/**
+ * Implementation of the TrustManager interface
+ * Because of it's dependency of Context, this class should be used from VerifierApp.trustManagerInstance
+ */
 class TrustManagerImplementation(val context: Context) : TrustManager {
     private val certificatesForAllDocTypes: MutableMap<X500Name, X509Certificate>
     private val certificatesByDocType: MutableMap<String, MutableMap<X500Name, X509Certificate>>
-
-
-    /** Singleton TrustManager  */
-    companion object {
-        private const val DIGITAL_SIGNATURE = 0
-        private const val KEY_CERT_SIGN = 5
-
-        @Volatile
-        private var instance: TrustManager? = null
-
-        fun getInstance(context: Context): TrustManager = instance ?: synchronized(this) {
-            instance ?: TrustManagerImplementation(context).also { instance = it }
-        }
-    }
-
-    init {
+    init{
         certificatesForAllDocTypes = HashMap()
         certificatesByDocType = HashMap()
+        reset()
+    }
+    override fun reset() {
+        certificatesForAllDocTypes.clear()
+        certificatesByDocType.clear()
         addCertificatesFromResources()
         addCertificatesFromStore()
         addVicalsFromStore()
     }
 
-    override fun reset() {
-        instance = null
-    }
-
-    override fun verify(chain: List<X509Certificate>): List<X509Certificate> {
-        // execute the verification with empty mdocType and with an empty list of custom validators
-        return verify("", chain, ArrayList<PKIXCertPathChecker>())
-    }
-
-    override fun verify(mdocType: String, chain: List<X509Certificate>): List<X509Certificate> {
-        // execute the verification with an empty list of custom validators
-        return verify(mdocType, chain, ArrayList<PKIXCertPathChecker>())
-    }
-
     override fun verify(
-        mdocType: String,
         chain: List<X509Certificate>,
-        mdocAndCRLPathCheckers: List<PKIXCertPathChecker>
+        mdocType: String,
+        customValidators: List<PKIXCertPathChecker>
     ): List<X509Certificate> {
         val trustedRoot = findTrustedRoot(chain, mdocType)
             ?: throw Exception("Trusted root certificate could not be found")
         val completeChain = chain.toMutableList().plus(trustedRoot)
-        validateCertificationTrustPath(completeChain, mdocAndCRLPathCheckers)
+        validateCertificationTrustPath(completeChain, customValidators)
         return completeChain
     }
 
@@ -79,13 +60,13 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
 
     private fun validateCertificationTrustPath(
         certificationTrustPath: List<X509Certificate>,
-        mdocAndCRLPathCheckers: List<PKIXCertPathChecker>
+        customValidators: List<PKIXCertPathChecker>
     ) {
         val certIterator = certificationTrustPath.iterator()
         val leafCert = certIterator.next()
         CertificateValidations.checkKeyUsageDocumentSigner(leafCert)
         CertificateValidations.checkValidity(leafCert)
-        CertificateValidations.executeCustomValidations(leafCert, mdocAndCRLPathCheckers)
+        CertificateValidations.executeCustomValidations(leafCert, customValidators)
 
         // Note that the signature of the trusted certificate itself is not verified even if it is self signed
         var prevCert = leafCert
@@ -95,10 +76,10 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
             CertificateValidations.checkKeyUsageCaCertificate(caCert)
             CertificateValidations.checkCaIsIssuer(prevCert, caCert)
             CertificateValidations.verifySignature(prevCert, caCert)
+            CertificateValidations.executeCustomValidations(caCert, customValidators)
             prevCert = caCert
         }
     }
-
     private fun addCertificatesFromResources() {
         KeysAndCertificates.getTrustedIssuerCertificates(context).forEach { cert ->
             run {
@@ -111,7 +92,7 @@ class TrustManagerImplementation(val context: Context) : TrustManager {
     }
 
     private fun addCertificatesFromStore() {
-        CaCertificateStore.getAll(context).forEach { cert ->
+        VerifierApp.caCertificateStoreInstance.getAll().forEach { cert ->
             run {
                 val name = X500Name(cert.subjectX500Principal.name)
                 if (!certificateExists(name)) {

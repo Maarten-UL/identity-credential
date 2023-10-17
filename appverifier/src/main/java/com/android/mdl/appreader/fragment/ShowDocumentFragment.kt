@@ -18,14 +18,13 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.android.identity.mdoc.response.DeviceResponseParser
 import com.android.mdl.appreader.R
+import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.databinding.FragmentShowDocumentBinding
-import com.android.mdl.appreader.issuerauth.TrustManagerImplementation
 import com.android.mdl.appreader.transfer.TransferManager
 import com.android.mdl.appreader.util.FormatUtil
 import com.android.mdl.appreader.util.TransferStatus
 import com.android.mdl.appreader.util.logDebug
 import java.security.MessageDigest
-import java.security.cert.PKIXCertPathChecker
 
 /**
  * A simple [Fragment] subclass as the default destination in the navigation.
@@ -186,7 +185,7 @@ class ShowDocumentFragment : Fragment() {
             var certChain = doc.issuerCertificateChain.toList();
             var isDSTrusted = true
             try {
-                certChain = TrustManagerImplementation.getInstance(requireContext()).verify(doc.docType, certChain)
+                certChain = VerifierApp.trustManagerInstance.verify(chain = certChain, mdocType = doc.docType)
             } catch (e: Exception){
                 sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${e.message}<br>")
                 isDSTrusted = false
