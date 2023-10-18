@@ -20,6 +20,7 @@ import com.android.identity.mdoc.response.DeviceResponseParser
 import com.android.mdl.appreader.R
 import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.databinding.FragmentShowDocumentBinding
+import com.android.mdl.appreader.issuerauth.CustomValidators
 import com.android.mdl.appreader.transfer.TransferManager
 import com.android.mdl.appreader.util.FormatUtil
 import com.android.mdl.appreader.util.TransferStatus
@@ -141,6 +142,7 @@ class ShowDocumentFragment : Fragment() {
                     transferManager.disconnect()
                     hideButtons()
                 }
+
                 else -> {}
             }
         }
@@ -162,11 +164,15 @@ class ShowDocumentFragment : Fragment() {
         for (doc in documents) {
             if (!checkPortraitPresenceIfRequired(doc)) {
                 // Warn if portrait isn't included in the response.
-                sb.append("<h3>WARNING: <font color=\"red\">No portrait image provided "
-                        + "for ${doc.docType}.</font></h3><br>")
-                sb.append("<i>This means it's not possible to verify the presenter is the authorized "
-                        + "holder. Be careful doing any business transactions or inquiries until "
-                        + "proper identification is confirmed.</i><br>")
+                sb.append(
+                    "<h3>WARNING: <font color=\"red\">No portrait image provided "
+                            + "for ${doc.docType}.</font></h3><br>"
+                )
+                sb.append(
+                    "<i>This means it's not possible to verify the presenter is the authorized "
+                            + "holder. Be careful doing any business transactions or inquiries until "
+                            + "proper identification is confirmed.</i><br>"
+                )
                 sb.append("<br>")
             }
         }
@@ -185,8 +191,13 @@ class ShowDocumentFragment : Fragment() {
             var certChain = doc.issuerCertificateChain.toList();
             var isDSTrusted = true
             try {
-                certChain = VerifierApp.trustManagerInstance.verify(chain = certChain, mdocType = doc.docType)
-            } catch (e: Exception){
+                val customValidators = CustomValidators.getByDocType(doc.docType)
+                certChain = VerifierApp.trustManagerInstance.verify(
+                    chain = certChain,
+                    mdocType = doc.docType,
+                    customValidators = customValidators
+                )
+            } catch (e: Exception) {
                 sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${e.message}<br>")
                 isDSTrusted = false
             }
@@ -267,7 +278,16 @@ class ShowDocumentFragment : Fragment() {
                     } else {
                         valueStr = FormatUtil.cborPrettyPrint(value)
                     }
-                    sb.append("${getFormattedCheck(doc.getIssuerEntryDigestMatch(ns, elem))}<b>$elem</b> -> $valueStr<br>")
+                    sb.append(
+                        "${
+                            getFormattedCheck(
+                                doc.getIssuerEntryDigestMatch(
+                                    ns,
+                                    elem
+                                )
+                            )
+                        }<b>$elem</b> -> $valueStr<br>"
+                    )
                 }
                 sb.append("</p><br>")
             }
@@ -275,7 +295,7 @@ class ShowDocumentFragment : Fragment() {
         return sb.toString()
     }
 
-    private fun isPortraitApplicable(docType: String, namespace: String?): Boolean{
+    private fun isPortraitApplicable(docType: String, namespace: String?): Boolean {
         val hasPortrait = docType == MDL_DOCTYPE || docType == EU_PID_DOCTYPE
         val namespaceContainsPortrait = namespace == MDL_NAMESPACE || namespace == EU_PID_NAMESPACE
         return hasPortrait && namespaceContainsPortrait

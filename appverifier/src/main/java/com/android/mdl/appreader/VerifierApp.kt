@@ -6,7 +6,6 @@ import com.android.identity.util.Logger
 import androidx.preference.PreferenceManager
 import com.android.mdl.appreader.issuerauth.CaCertificateStore
 import com.android.mdl.appreader.issuerauth.TrustManager
-import com.android.mdl.appreader.issuerauth.TrustManagerImplementation
 import com.android.mdl.appreader.settings.UserPreferences
 import com.google.android.material.color.DynamicColors
 
@@ -22,7 +21,7 @@ class VerifierApp : Application() {
     }
 
     private val trustManager by lazy {
-        TrustManagerImplementation(this)
+        TrustManager(this, caCertificateStoreInstance)
     }
 
     override fun onCreate() {
