@@ -11,14 +11,11 @@ import java.security.cert.X509Certificate
 
 object CertificateValidations {
 
-    private const val DIGITAL_SIGNATURE = 0
-    private const val KEY_CERT_SIGN = 5
-
     /**
      * Check that the key usage is the creation of digital signatures
      */
     fun checkKeyUsageDocumentSigner(certificate: X509Certificate) {
-        if (!certificate.keyUsage[DIGITAL_SIGNATURE]) {
+        if (certificate.hasKeyUsageDocumentSigner()) {
             throw CertificateException("Document Signer certificate is not a signing certificate");
         }
     }
@@ -50,7 +47,7 @@ object CertificateValidations {
      * Check that the key usage is to sign certificates
      */
     fun checkKeyUsageCaCertificate(caCertificate: X509Certificate) {
-        if (!caCertificate.keyUsage[KEY_CERT_SIGN]) {
+        if (caCertificate.hasKeyUsageCaCertificate()) {
             throw CertificateException("CA certificate doesn't have the key usage to sign certificates")
         }
     }

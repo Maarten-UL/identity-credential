@@ -8,6 +8,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.android.identity.internal.Util
 import com.android.mdl.appreader.VerifierApp
+import com.android.mdl.appreader.issuerauth.getCommonName
+import com.android.mdl.appreader.issuerauth.getOrganisation
+import com.android.mdl.appreader.issuerauth.organisationalUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,8 +56,8 @@ class CaCertificatesViewModel(val context: Context) : ViewModel() {
     }
 
     private fun convert(certificate: X509Certificate): CertificateItem {
-        val subject = X500Name(certificate.subjectX500Principal.name)
-        val issuer = X500Name(certificate.issuerX500Principal.name)
+        val subject = certificate.subjectX500Principal
+        val issuer = certificate.issuerX500Principal
         val sha255Fingerprint = hexWithSpaces(
             MessageDigest.getInstance("SHA-256").digest(
                 certificate.encoded
@@ -65,31 +68,22 @@ class CaCertificatesViewModel(val context: Context) : ViewModel() {
                 certificate.encoded
             )
         );
+        val defaultValue = "<Not part of certificate>"
 
         return CertificateItem(
-            title = certificate.subjectX500Principal.name,
-            commonNameSubject = readRdn(subject, BCStyle.CN),
-            organisationSubject = readRdn(subject, BCStyle.O),
-            organisationalUnitSubject = readRdn(subject, BCStyle.OU),
-            commonNameIssuer = readRdn(issuer, BCStyle.CN),
-            organisationIssuer = readRdn(issuer, BCStyle.O),
-            organisationalUnitIssuer = readRdn(issuer, BCStyle.OU),
+            title = subject.name,
+            commonNameSubject = subject.getCommonName(defaultValue),
+            organisationSubject = subject.getOrganisation(defaultValue),
+            organisationalUnitSubject = subject.organisationalUnit(defaultValue),
+            commonNameIssuer = issuer.getCommonName(defaultValue),
+            organisationIssuer = issuer.getOrganisation(defaultValue),
+            organisationalUnitIssuer = issuer.organisationalUnit(defaultValue),
             notBefore = certificate.notBefore,
             notAfter = certificate.notAfter,
             sha255Fingerprint = sha255Fingerprint,
             sha1Fingerprint = sha1Fingerprint,
             certificate = certificate
         )
-    }
-
-    private fun readRdn(name: X500Name, field: ASN1ObjectIdentifier): String {
-        for (rdn in name.getRDNs(field)) {
-            val attributes = rdn.typesAndValues
-            for (attribute in attributes) {
-                return attribute.value.toString()
-            }
-        }
-        return "<Not part of certificate>"
     }
 
     private fun hexWithSpaces(byteArray: ByteArray): String {

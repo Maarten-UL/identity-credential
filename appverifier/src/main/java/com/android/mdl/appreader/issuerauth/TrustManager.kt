@@ -10,10 +10,24 @@ import java.security.cert.X509Certificate
  * [TrustManager] class used for the verification of a certificate chain
  * Because of it's dependency of Context, this class should be used from VerifierApp.trustManagerInstance
  */
-class TrustManager(private val context: Context, private val caCertificateStore: CaCertificateStore)  {
+class TrustManager(
+    private val getCertificates: () -> List<X509Certificate>,
+    //private val getVicals: () -> List<Vical>
+) {
     private val certificatesForAllDocTypes: MutableMap<X500Name, X509Certificate>
     private val certificatesByDocType: MutableMap<String, MutableMap<X500Name, X509Certificate>>
-    init{
+
+    /**
+     * Class containing the result of the verification of a certificate chain
+     */
+    class TrustResult(
+        var isTrusted: Boolean,
+        var trustChain: List<X509Certificate> = emptyList(),
+        //var vicals: List<X509Certificate> = emptyList(),
+        var error: String = ""
+    )
+
+    init {
         certificatesForAllDocTypes = HashMap()
         certificatesByDocType = HashMap()
         reset()
@@ -25,9 +39,8 @@ class TrustManager(private val context: Context, private val caCertificateStore:
     fun reset() {
         certificatesForAllDocTypes.clear()
         certificatesByDocType.clear()
-        addCertificatesFromResources()
-        addCertificatesFromStore()
-        addVicalsFromStore()
+        addCertificates()
+        addVicals()
     }
 
     /**
@@ -38,19 +51,37 @@ class TrustManager(private val context: Context, private val caCertificateStore:
      * @param [mdocType] optional parameter mdocType. If left blank, the certificates that are not
      * specific for any mDoc type will be used
      * @param [customValidators] optional parameter with custom validators
-     * @return the complete certificate chain including the root certificate or throws an exception
-     * if the verification fails
+     * @return [TrustResult] a class that returns a verdict [TrustResult.isTrusted], optionally
+     * [TrustResult.trustChain]: the complete certificate chain, including the root certificate,
+     * optionally [TrustResult.vicals]: the vicals that trust the root certificate and optionally
+     * [TrustResult.error]: an error message when the certificate chain is not trusted
      */
     fun verify(
         chain: List<X509Certificate>,
         mdocType: String = "",
         customValidators: List<PKIXCertPathChecker> = emptyList()
-    ): List<X509Certificate> {
+    ): TrustResult {
         val trustedRoot = findTrustedRoot(chain, mdocType)
-            ?: throw Exception("Trusted root certificate could not be found")
+            ?: return TrustResult(
+                isTrusted = false,
+                error = "Trusted root certificate could not be found"
+            )
         val completeChain = chain.toMutableList().plus(trustedRoot)
-        validateCertificationTrustPath(completeChain, customValidators)
-        return completeChain
+        try {
+            validateCertificationTrustPath(completeChain, customValidators)
+            return TrustResult(
+                isTrusted = true,
+                trustChain = completeChain
+                /*vicals = vicals*/
+            )
+        } catch (e: Throwable) {
+            return TrustResult(
+                isTrusted = false,
+                trustChain = completeChain,
+                /*vicals = vicals,*/
+                error = e.message.toString()
+            )
+        }
     }
 
     private fun findTrustedRoot(chain: List<X509Certificate>, mdocType: String): X509Certificate? {
@@ -94,8 +125,10 @@ class TrustManager(private val context: Context, private val caCertificateStore:
             prevCert = caCert
         }
     }
-    private fun addCertificatesFromResources() {
-        KeysAndCertificates.getTrustedIssuerCertificates(context).forEach { cert ->
+
+    private fun addCertificates() {
+        val certificates = getCertificates();
+        certificates.forEach { cert ->
             run {
                 val name = X500Name(cert.subjectX500Principal.name)
                 if (!certificateExists(name)) {
@@ -105,20 +138,9 @@ class TrustManager(private val context: Context, private val caCertificateStore:
         }
     }
 
-    private fun addCertificatesFromStore() {
-        caCertificateStore.getAll().forEach { cert ->
-            run {
-                val name = X500Name(cert.subjectX500Principal.name)
-                if (!certificateExists(name)) {
-                    certificatesForAllDocTypes[name] = cert
-                }
-            }
-        }
-    }
-
-    private fun addVicalsFromStore() {
+    private fun addVicals() {
         // TODO: get certificates by mdoc type from the vicals
-        // VicalStore.getAll(context)
+        // getVicals()
     }
 
     private fun certificateExists(name: X500Name): Boolean {
