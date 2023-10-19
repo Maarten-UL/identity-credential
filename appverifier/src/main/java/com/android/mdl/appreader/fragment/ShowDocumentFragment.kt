@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.AttrRes
+import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.android.identity.mdoc.response.DeviceResponseParser
@@ -189,17 +190,17 @@ class ShowDocumentFragment : Fragment() {
             sb.append("<h3>Doctype: <font color=\"$color\">${doc.docType}</font></h3>")
 
             var certChain = doc.issuerCertificateChain.toList();
-            var isDSTrusted = true
-            try {
-                val customValidators = CustomValidators.getByDocType(doc.docType)
-                certChain = VerifierApp.trustManagerInstance.verify(
-                    chain = certChain,
-                    mdocType = doc.docType,
-                    customValidators = customValidators
-                )
-            } catch (e: Exception) {
-                sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${e.message}<br>")
-                isDSTrusted = false
+            val customValidators = CustomValidators.getByDocType(doc.docType)
+            val result = VerifierApp.trustManagerInstance.verify(
+                chain = certChain,
+                mdocType = doc.docType,
+                customValidators = customValidators
+            )
+            if (result.trustChain.any()){
+                certChain = result.trustChain
+            }
+            if (!result.isTrusted) {
+                sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${result.error}<br>")
             }
             val issuerItems = certChain.last().issuerX500Principal.name.split(",")
             var cnFound = false
@@ -219,7 +220,7 @@ class ShowDocumentFragment : Fragment() {
                 }
             }
 
-            sb.append("${getFormattedCheck(isDSTrusted)}Issuer’s DS Key Recognized: ($commonName)<br>")
+            sb.append("${getFormattedCheck(result.isTrusted)}Issuer’s DS Key Recognized: ($commonName)<br>")
             sb.append("${getFormattedCheck(doc.issuerSignedAuthenticated)}Issuer Signed Authenticated<br>")
             var macOrSignatureString = "MAC"
             if (doc.deviceSignedAuthenticatedViaSignature)

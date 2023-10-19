@@ -7,7 +7,9 @@ import androidx.preference.PreferenceManager
 import com.android.mdl.appreader.issuerauth.CaCertificateStore
 import com.android.mdl.appreader.issuerauth.TrustManager
 import com.android.mdl.appreader.settings.UserPreferences
+import com.android.mdl.appreader.util.KeysAndCertificates
 import com.google.android.material.color.DynamicColors
+import java.security.cert.X509Certificate
 
 class VerifierApp : Application() {
 
@@ -16,12 +18,15 @@ class VerifierApp : Application() {
         UserPreferences(sharedPreferences)
     }
 
-    private val caCertificateStore by lazy{
+    private val caCertificateStore by lazy {
         CaCertificateStore(this)
     }
 
     private val trustManager by lazy {
-        TrustManager(this, caCertificateStoreInstance)
+        TrustManager {
+            KeysAndCertificates.getTrustedIssuerCertificates(this) +
+                    caCertificateStoreInstance.getAll()
+        }
     }
 
     override fun onCreate() {

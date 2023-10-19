@@ -1,8 +1,5 @@
 package com.android.mdl.appreader.issuerauth
 
-import org.bouncycastle.asn1.ASN1ObjectIdentifier
-import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.asn1.x500.style.BCStyle
 import java.security.cert.Certificate
 import java.security.cert.CertificateException
 import java.security.cert.PKIXCertPathChecker
@@ -20,7 +17,7 @@ class CountryValidator : PKIXCertPathChecker() {
 
     override fun check(certificate: Certificate?, state: MutableCollection<String>?) {
         if (certificate is X509Certificate) {
-            val countryCode = readCountryCode(certificate)
+            val countryCode = certificate.subjectX500Principal.countryCode("")
             if (countryCode.isBlank()) {
                 throw CertificateException("Country code is not present in certificate " + certificate.subjectX500Principal.name)
             }
@@ -34,16 +31,5 @@ class CountryValidator : PKIXCertPathChecker() {
 
     override fun getSupportedExtensions(): MutableSet<String> {
         return mutableSetOf()
-    }
-
-    private fun readCountryCode(certificate: X509Certificate): String {
-        val name = X500Name(certificate.subjectX500Principal.name)
-        for (rdn in name.getRDNs(BCStyle.C)) {
-            val attributes = rdn.typesAndValues
-            for (attribute in attributes) {
-                return attribute.value.toString()
-            }
-        }
-        return ""
     }
 }
