@@ -1,15 +1,19 @@
 package com.android.mdl.appreader.settings
 
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.preference.PreferenceManager
 import com.android.mdl.appreader.theme.ReaderAppTheme
 
@@ -22,6 +26,8 @@ class SettingsFragment : Fragment() {
     private val viewModel: SettingsViewModel by viewModels {
         SettingsViewModel.factory(userPreferences)
     }
+
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -45,10 +51,18 @@ class SettingsFragment : Fragment() {
                         onWifiAwareTransferChanged = viewModel::onWifiAwareUpdated,
                         onNfcTransferChanged = viewModel::onNfcTransferUpdated,
                         onDebugLoggingChanged = viewModel::onDebugLoggingUpdated,
-                        onChangeReaderAuthentication = viewModel::onReaderAuthenticationUpdated
+                        onChangeReaderAuthentication = viewModel::onReaderAuthenticationUpdated,
+                        onOpenCaCertificates = {openCaCertificates()}
                     )
                 }
             }
         }
     }
+
+    private fun openCaCertificates(){
+        val destination = SettingsFragmentDirections.toCaCertificates()
+        findNavController().navigate(destination)
+    }
+
+
 }

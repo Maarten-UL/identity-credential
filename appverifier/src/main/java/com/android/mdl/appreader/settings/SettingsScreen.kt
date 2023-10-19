@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -51,7 +52,8 @@ fun SettingsScreen(
     onWifiAwareTransferChanged: (enabled: Boolean) -> Unit,
     onNfcTransferChanged: (enabled: Boolean) -> Unit,
     onDebugLoggingChanged: (enabled: Boolean) -> Unit,
-    onChangeReaderAuthentication: (which: Int) -> Unit
+    onChangeReaderAuthentication: (which: Int) -> Unit,
+    onOpenCaCertificates: () -> Unit
 ) {
     Column(modifier = modifier) {
         val scrollState = rememberScrollState()
@@ -150,6 +152,19 @@ fun SettingsScreen(
                 title = "Use Reader Authentication",
                 subtitle = readerAuthenticationFor(screenState.readerAuthentication)
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingSectionTitle(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                title = "CA Certificates"
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            SettingItem(
+                modifier = Modifier
+                    .clickable { onOpenCaCertificates() }
+                    .padding(16.dp),
+                title = "Show CA Certificates",
+                subtitle = "Click here to show the CA Certificates"
+            )
         }
         ReaderAuthenticationOptions(
             modifier = Modifier.fillMaxWidth(),
@@ -230,7 +245,6 @@ private fun LabeledRadioButton(
         Text(text = label)
     }
 }
-
 @Composable
 fun readerAuthenticationFor(readerAuthentication: Int): String {
     val values = stringArrayResource(id = R.array.readerAuthenticationNames)
@@ -335,7 +349,8 @@ private fun SettingsScreenPreview() {
             onWifiAwareTransferChanged = {},
             onNfcTransferChanged = {},
             onDebugLoggingChanged = {},
-            onChangeReaderAuthentication = {}
+            onChangeReaderAuthentication = {},
+            onOpenCaCertificates = {}
         )
     }
 }

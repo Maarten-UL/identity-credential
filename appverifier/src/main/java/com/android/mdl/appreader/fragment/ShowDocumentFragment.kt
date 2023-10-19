@@ -18,11 +18,11 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import com.android.identity.mdoc.response.DeviceResponseParser
 import com.android.mdl.appreader.R
+import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.databinding.FragmentShowDocumentBinding
-import com.android.mdl.appreader.issuerauth.SimpleIssuerTrustStore
+import com.android.mdl.appreader.issuerauth.CustomValidators
 import com.android.mdl.appreader.transfer.TransferManager
 import com.android.mdl.appreader.util.FormatUtil
-import com.android.mdl.appreader.util.KeysAndCertificates
 import com.android.mdl.appreader.util.TransferStatus
 import com.android.mdl.appreader.util.logDebug
 import java.security.MessageDigest
@@ -142,6 +142,7 @@ class ShowDocumentFragment : Fragment() {
                     transferManager.disconnect()
                     hideButtons()
                 }
+
                 else -> {}
             }
         }
@@ -158,19 +159,20 @@ class ShowDocumentFragment : Fragment() {
     private fun formatTextResult(documents: Collection<DeviceResponseParser.Document>): String {
         // Create the trustManager to validate the DS Certificate against the list of known
         // certificates in the app
-        val simpleIssuerTrustStore =
-            SimpleIssuerTrustStore(KeysAndCertificates.getTrustedIssuerCertificates(requireContext()))
-
         val sb = StringBuffer()
 
         for (doc in documents) {
             if (!checkPortraitPresenceIfRequired(doc)) {
                 // Warn if portrait isn't included in the response.
-                sb.append("<h3>WARNING: <font color=\"red\">No portrait image provided "
-                        + "for ${doc.docType}.</font></h3><br>")
-                sb.append("<i>This means it's not possible to verify the presenter is the authorized "
-                        + "holder. Be careful doing any business transactions or inquiries until "
-                        + "proper identification is confirmed.</i><br>")
+                sb.append(
+                    "<h3>WARNING: <font color=\"red\">No portrait image provided "
+                            + "for ${doc.docType}.</font></h3><br>"
+                )
+                sb.append(
+                    "<i>This means it's not possible to verify the presenter is the authorized "
+                            + "holder. Be careful doing any business transactions or inquiries until "
+                            + "proper identification is confirmed.</i><br>"
+                )
                 sb.append("<br>")
             }
         }
@@ -185,16 +187,20 @@ class ShowDocumentFragment : Fragment() {
                 0xFFFFFF and requireContext().theme.attr(R.attr.colorPrimary).data
             )
             sb.append("<h3>Doctype: <font color=\"$color\">${doc.docType}</font></h3>")
-            val certPath =
-                simpleIssuerTrustStore.createCertificationTrustPath(doc.issuerCertificateChain.toList())
-            val isDSTrusted = simpleIssuerTrustStore.validateCertificationTrustPath(certPath)
-            // Use the issuer certificate chain if we could not build the certificate trust path
-            val certChain = if (certPath?.isNotEmpty() == true) {
-                certPath
-            } else {
-                doc.issuerCertificateChain.toList()
-            }
 
+            var certChain = doc.issuerCertificateChain.toList();
+            var isDSTrusted = true
+            try {
+                val customValidators = CustomValidators.getByDocType(doc.docType)
+                certChain = VerifierApp.trustManagerInstance.verify(
+                    chain = certChain,
+                    mdocType = doc.docType,
+                    customValidators = customValidators
+                )
+            } catch (e: Exception) {
+                sb.append("${getFormattedCheck(false)}Error in certificate chain validation: ${e.message}<br>")
+                isDSTrusted = false
+            }
             val issuerItems = certChain.last().issuerX500Principal.name.split(",")
             var cnFound = false
             val commonName = StringBuffer()
@@ -272,7 +278,16 @@ class ShowDocumentFragment : Fragment() {
                     } else {
                         valueStr = FormatUtil.cborPrettyPrint(value)
                     }
-                    sb.append("${getFormattedCheck(doc.getIssuerEntryDigestMatch(ns, elem))}<b>$elem</b> -> $valueStr<br>")
+                    sb.append(
+                        "${
+                            getFormattedCheck(
+                                doc.getIssuerEntryDigestMatch(
+                                    ns,
+                                    elem
+                                )
+                            )
+                        }<b>$elem</b> -> $valueStr<br>"
+                    )
                 }
                 sb.append("</p><br>")
             }
@@ -280,7 +295,7 @@ class ShowDocumentFragment : Fragment() {
         return sb.toString()
     }
 
-    private fun isPortraitApplicable(docType: String, namespace: String?): Boolean{
+    private fun isPortraitApplicable(docType: String, namespace: String?): Boolean {
         val hasPortrait = docType == MDL_DOCTYPE || docType == EU_PID_DOCTYPE
         val namespaceContainsPortrait = namespace == MDL_NAMESPACE || namespace == EU_PID_NAMESPACE
         return hasPortrait && namespaceContainsPortrait
