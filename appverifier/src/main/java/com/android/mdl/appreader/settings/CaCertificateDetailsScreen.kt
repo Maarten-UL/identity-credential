@@ -25,7 +25,8 @@ import java.util.Date
 @Composable
 fun CaCertificateDetailsScreen(
     certificateItem: CertificateItem?,
-    onDeleteCertificate: () -> Unit
+    supportsDelete: Boolean = true,
+    onDeleteCertificate: () -> Unit = {}
 ) {
     if (certificateItem == null) {
         Title(title = "No certificate provided")
@@ -77,8 +78,10 @@ fun CaCertificateDetailsScreen(
                 Line(modifier = Modifier, "SHA-1 fingerprint")
                 Line(modifier = Modifier.padding(16.dp), certificateItem.sha1Fingerprint)
             }
-            Button(onClick = onDeleteCertificate) {
-                Text(text = "Delete")
+            if (supportsDelete) {
+                Button(onClick = onDeleteCertificate) {
+                    Text(text = "Delete")
+                }
             }
         }
     }

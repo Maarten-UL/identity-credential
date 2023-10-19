@@ -56,7 +56,7 @@ abstract class Store<T>(val context: Context) {
     /**
      * Determine the filename (without extension)
      */
-    protected abstract fun determineFileName(item: T): String
+     abstract fun determineFileName(item: T): String
 
     /**
      * Replace reserved characters in the file name with underscores

@@ -6,6 +6,7 @@ import com.android.identity.util.Logger
 import androidx.preference.PreferenceManager
 import com.android.mdl.appreader.issuerauth.CaCertificateStore
 import com.android.mdl.appreader.issuerauth.TrustManager
+import com.android.mdl.appreader.issuerauth.VicalStore
 import com.android.mdl.appreader.settings.UserPreferences
 import com.android.mdl.appreader.util.KeysAndCertificates
 import com.google.android.material.color.DynamicColors
@@ -22,11 +23,13 @@ class VerifierApp : Application() {
         CaCertificateStore(this)
     }
 
+    private val vicalStore by lazy {
+        VicalStore(this)
+    }
+
     private val trustManager by lazy {
-        TrustManager {
-            KeysAndCertificates.getTrustedIssuerCertificates(this) +
-                    caCertificateStoreInstance.getAll()
-        }
+        TrustManager({ KeysAndCertificates.getTrustedIssuerCertificates(this) + caCertificateStoreInstance.getAll() },
+            { vicalStoreInstance.getAll() })
     }
 
     override fun onCreate() {
@@ -35,6 +38,7 @@ class VerifierApp : Application() {
         DynamicColors.applyToActivitiesIfAvailable(this)
         userPreferencesInstance = userPreferences
         caCertificateStoreInstance = caCertificateStore
+        vicalStoreInstance = vicalStore
         trustManagerInstance = trustManager
 
     }
@@ -43,6 +47,7 @@ class VerifierApp : Application() {
 
         private lateinit var userPreferencesInstance: UserPreferences
         lateinit var caCertificateStoreInstance: CaCertificateStore
+        lateinit var vicalStoreInstance: VicalStore
         lateinit var trustManagerInstance: TrustManager
 
         fun isDebugLogEnabled(): Boolean {

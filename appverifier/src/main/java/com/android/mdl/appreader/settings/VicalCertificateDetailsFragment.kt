@@ -9,13 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.navigation.fragment.findNavController
-import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.theme.ReaderAppTheme
 
-class CaCertificateDetailsFragment : Fragment() {
-    private val viewModel: CaCertificatesViewModel by activityViewModels {
-        CaCertificatesViewModel.factory(requireContext())
+class VicalCertificateDetailsFragment : Fragment() {
+    private val viewModel: VicalsViewModel by activityViewModels {
+        VicalsViewModel.factory(requireContext())
     }
 
     override fun onCreateView(
@@ -27,17 +25,12 @@ class CaCertificateDetailsFragment : Fragment() {
             setContent {
                 val state by viewModel.currentCertificateItem.collectAsState()
                 ReaderAppTheme {
-                    CaCertificateDetailsScreen(certificateItem = state,
-                        onDeleteCertificate = { deleteCertificate() })
+                    CaCertificateDetailsScreen(
+                        certificateItem = state,
+                        supportsDelete = false
+                    )
                 }
             }
         }
-    }
-
-    private fun deleteCertificate() {
-        viewModel.deleteCertificate()
-        viewModel.loadCertificates()
-        VerifierApp.trustManagerInstance.reset()
-        findNavController().popBackStack()
     }
 }

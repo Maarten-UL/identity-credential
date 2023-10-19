@@ -52,7 +52,8 @@ class SettingsFragment : Fragment() {
                         onNfcTransferChanged = viewModel::onNfcTransferUpdated,
                         onDebugLoggingChanged = viewModel::onDebugLoggingUpdated,
                         onChangeReaderAuthentication = viewModel::onReaderAuthenticationUpdated,
-                        onOpenCaCertificates = {openCaCertificates()}
+                        onOpenCaCertificates = {openCaCertificates()},
+                        onOpenVicals = {openVicals()}
                     )
                 }
             }
@@ -61,6 +62,11 @@ class SettingsFragment : Fragment() {
 
     private fun openCaCertificates(){
         val destination = SettingsFragmentDirections.toCaCertificates()
+        findNavController().navigate(destination)
+    }
+
+    private fun openVicals(){
+        val destination = SettingsFragmentDirections.toVicals()
         findNavController().navigate(destination)
     }
 

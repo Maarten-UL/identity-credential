@@ -1,6 +1,7 @@
 package com.android.mdl.appreader.issuerauth
 
 import android.content.Context
+import com.android.mdl.appreader.issuerauth.vical.Vical
 import com.android.mdl.appreader.util.KeysAndCertificates
 import org.bouncycastle.asn1.x500.X500Name
 import java.security.cert.PKIXCertPathChecker
@@ -12,10 +13,11 @@ import java.security.cert.X509Certificate
  */
 class TrustManager(
     private val getCertificates: () -> List<X509Certificate>,
-    //private val getVicals: () -> List<Vical>
+    private val getVicals: () -> List<Vical>
 ) {
     private val certificatesForAllDocTypes: MutableMap<X500Name, X509Certificate>
     private val certificatesByDocType: MutableMap<String, MutableMap<X500Name, X509Certificate>>
+    private val vicalsByDocTypeAndName: MutableMap<Pair<String, X500Name>, MutableList<Vical>>
 
     /**
      * Class containing the result of the verification of a certificate chain
@@ -23,13 +25,14 @@ class TrustManager(
     class TrustResult(
         var isTrusted: Boolean,
         var trustChain: List<X509Certificate> = emptyList(),
-        //var vicals: List<X509Certificate> = emptyList(),
+        var vicals: List<Vical> = emptyList(),
         var error: String = ""
     )
 
     init {
         certificatesForAllDocTypes = HashMap()
         certificatesByDocType = HashMap()
+        vicalsByDocTypeAndName = HashMap()
         reset()
     }
 
@@ -39,6 +42,7 @@ class TrustManager(
     fun reset() {
         certificatesForAllDocTypes.clear()
         certificatesByDocType.clear()
+        vicalsByDocTypeAndName.clear()
         addCertificates()
         addVicals()
     }
@@ -67,18 +71,20 @@ class TrustManager(
                 error = "Trusted root certificate could not be found"
             )
         val completeChain = chain.toMutableList().plus(trustedRoot)
+        val vicalsKey = Pair(mdocType, X500Name(trustedRoot.subjectX500Principal.name));
+        val vicals = vicalsByDocTypeAndName.getOrDefault(vicalsKey, emptyList())
         try {
             validateCertificationTrustPath(completeChain, customValidators)
             return TrustResult(
                 isTrusted = true,
-                trustChain = completeChain
-                /*vicals = vicals*/
+                trustChain = completeChain,
+                vicals = vicals
             )
         } catch (e: Throwable) {
             return TrustResult(
                 isTrusted = false,
                 trustChain = completeChain,
-                /*vicals = vicals,*/
+                vicals = vicals,
                 error = e.message.toString()
             )
         }
@@ -127,7 +133,7 @@ class TrustManager(
     }
 
     private fun addCertificates() {
-        val certificates = getCertificates();
+        val certificates = getCertificates()
         certificates.forEach { cert ->
             run {
                 val name = X500Name(cert.subjectX500Principal.name)
@@ -139,8 +145,34 @@ class TrustManager(
     }
 
     private fun addVicals() {
-        // TODO: get certificates by mdoc type from the vicals
-        // getVicals()
+        val vicals = getVicals()
+        for (vical in vicals) {
+            for (certificateInfo in vical.certificateInfos()) {
+                if (certificateInfo == null) {
+                    continue
+                }
+                val name = X500Name(certificateInfo.certificate().subjectX500Principal.name)
+                for (docType in certificateInfo.docTypes().filter { it.isNullOrEmpty() }) {
+
+                    // add to certificatesByDocType
+                    if (!certificatesByDocType.containsKey(docType)) {
+                        certificatesByDocType[docType.toString()] = HashMap()
+                    }
+                    if(!certificatesByDocType[docType.toString()]?.containsKey(name)!!)
+                    {
+                        certificatesByDocType[docType.toString()]?.set(name,
+                            certificateInfo.certificate()
+                        )
+                    }
+                    // add to vicalsByDocTypeAndName
+                    val key = Pair(docType.toString(), name)
+                    if (!vicalsByDocTypeAndName.containsKey(key)){
+                        vicalsByDocTypeAndName[key] = mutableListOf()
+                    }
+                    vicalsByDocTypeAndName[key]?.add(vical)
+                }
+            }
+        }
     }
 
     private fun certificateExists(name: X500Name): Boolean {

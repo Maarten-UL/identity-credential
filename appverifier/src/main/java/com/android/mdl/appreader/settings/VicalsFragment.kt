@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.ComposeView
@@ -15,10 +14,10 @@ import androidx.navigation.fragment.findNavController
 import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.theme.ReaderAppTheme
 
-class CaCertificatesFragment : Fragment() {
+class VicalsFragment : Fragment(){
 
-    private val viewModel: CaCertificatesViewModel by activityViewModels {
-        CaCertificatesViewModel.factory(requireContext())
+    private val viewModel: VicalsViewModel by activityViewModels {
+        VicalsViewModel.factory(requireContext())
     }
 
     private val browseCertificateLauncher =
@@ -35,17 +34,17 @@ class CaCertificatesFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setContent {
                 val state = viewModel.screenState.collectAsState().value
-                viewModel.loadCertificates()
+                viewModel.loadVicals()
                 ReaderAppTheme {
-                    CaCertificatesScreen(
+                    VicalsScreen(
                         screenState = state,
-                        onSelectCertificate = {
-                            viewModel.setCurrentCertificateItem(it)
+                        onSelectVical = {
+                            viewModel.setCurrentVicalItem(it)
                             openDetails()
                         },
-                        onImportCertificate = {
+                        onImportVical = {
                             fileDialog()
-                            viewModel.loadCertificates()
+                            viewModel.loadVicals()
                         }
                     )
                 }
@@ -66,7 +65,7 @@ class CaCertificatesFragment : Fragment() {
         try {
             val inputStream = this.requireContext().contentResolver.openInputStream(uri)
             if (inputStream != null) {
-                VerifierApp.caCertificateStoreInstance.save(inputStream.readBytes())
+                VerifierApp.vicalStoreInstance.save(inputStream.readBytes())
                 // force the trust manager to reload the certificates and vicals
                 VerifierApp.trustManagerInstance.reset()
             }

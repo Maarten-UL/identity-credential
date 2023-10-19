@@ -13,9 +13,9 @@ import androidx.navigation.fragment.findNavController
 import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.theme.ReaderAppTheme
 
-class CaCertificateDetailsFragment : Fragment() {
-    private val viewModel: CaCertificatesViewModel by activityViewModels {
-        CaCertificatesViewModel.factory(requireContext())
+class VicalDetailsFragment : Fragment() {
+    private val viewModel: VicalsViewModel by activityViewModels {
+        VicalsViewModel.factory(requireContext())
     }
 
     override fun onCreateView(
@@ -25,18 +25,26 @@ class CaCertificateDetailsFragment : Fragment() {
     ): View {
         return ComposeView(requireContext()).apply {
             setContent {
-                val state by viewModel.currentCertificateItem.collectAsState()
+                val state by viewModel.currentVicalItem.collectAsState()
                 ReaderAppTheme {
-                    CaCertificateDetailsScreen(certificateItem = state,
-                        onDeleteCertificate = { deleteCertificate() })
+                    VicalDetailsScreen(vicalItem = state,
+                        onSelectCertificate = {
+                            viewModel.setCurrentCertificateItem(it)
+                            openDetails() },
+                        onDeleteVical = { deleteVical() })
                 }
             }
         }
     }
 
-    private fun deleteCertificate() {
-        viewModel.deleteCertificate()
-        viewModel.loadCertificates()
+    private fun openDetails() {
+        val destination = VicalDetailsFragmentDirections.toVicalCertificateDetails()
+       findNavController().navigate(destination)
+    }
+
+    private fun deleteVical() {
+        viewModel.deleteVical()
+        viewModel.loadVicals()
         VerifierApp.trustManagerInstance.reset()
         findNavController().popBackStack()
     }
