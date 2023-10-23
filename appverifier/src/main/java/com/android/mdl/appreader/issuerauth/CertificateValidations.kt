@@ -15,7 +15,7 @@ object CertificateValidations {
      * Check that the key usage is the creation of digital signatures
      */
     fun checkKeyUsageDocumentSigner(certificate: X509Certificate) {
-        if (certificate.hasKeyUsageDocumentSigner()) {
+        if (!certificate.hasKeyUsageDocumentSigner()) {
             throw CertificateException("Document Signer certificate is not a signing certificate");
         }
     }
@@ -47,7 +47,7 @@ object CertificateValidations {
      * Check that the key usage is to sign certificates
      */
     fun checkKeyUsageCaCertificate(caCertificate: X509Certificate) {
-        if (caCertificate.hasKeyUsageCaCertificate()) {
+        if (!caCertificate.hasKeyUsageCaCertificate()) {
             throw CertificateException("CA certificate doesn't have the key usage to sign certificates")
         }
     }

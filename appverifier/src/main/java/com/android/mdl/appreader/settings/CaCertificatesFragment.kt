@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.ComposeView
@@ -14,6 +14,9 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.android.mdl.appreader.VerifierApp
 import com.android.mdl.appreader.theme.ReaderAppTheme
+import com.google.android.material.R
+import com.google.android.material.snackbar.Snackbar
+
 
 class CaCertificatesFragment : Fragment() {
 
@@ -69,9 +72,17 @@ class CaCertificatesFragment : Fragment() {
                 VerifierApp.caCertificateStoreInstance.save(inputStream.readBytes())
                 // force the trust manager to reload the certificates and vicals
                 VerifierApp.trustManagerInstance.reset()
+                viewModel.loadCertificates()
             }
         } catch (e: Throwable) {
-            // TODO: how to show errors?
+            val snackbar = Snackbar.make(
+                this.requireView(),
+                e.message.toString(),
+                Snackbar.LENGTH_LONG
+            )
+            val snackTextView = snackbar.view.findViewById<View>(R.id.snackbar_text) as TextView
+            snackTextView.maxLines = 4
+            snackbar.show()
         }
     }
 }

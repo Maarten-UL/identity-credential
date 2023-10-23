@@ -22,7 +22,7 @@ abstract class Store<T>(val context: Context) {
         val fileName = sanitizeFilename("${determineFileName(item)}$extension")
         val file = File(directory, fileName)
         if (file.exists()) {
-            // TODO: throw exception???
+            throw FileAlreadyExistsException(file, reason = "File already exist")
         } else {
             file.writeBytes(content)
         }
