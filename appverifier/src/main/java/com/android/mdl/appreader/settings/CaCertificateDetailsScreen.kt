@@ -1,12 +1,15 @@
 package com.android.mdl.appreader.settings
 
 import android.content.res.Configuration
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -77,6 +80,20 @@ fun CaCertificateDetailsScreen(
                 Line(modifier = Modifier.padding(16.dp), certificateItem.sha255Fingerprint)
                 Line(modifier = Modifier, "SHA-1 fingerprint")
                 Line(modifier = Modifier.padding(16.dp), certificateItem.sha1Fingerprint)
+                if (certificateItem.docTypes.isNotEmpty()){
+                    Subtitle(title = "Supported mdoc types")
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(certificateItem.docTypes) { docType ->
+                            Line(modifier = Modifier, text = docType)
+                        }
+                    }
+                }
             }
             if (supportsDelete) {
                 Button(onClick = onDeleteCertificate) {
@@ -135,6 +152,7 @@ private fun previewCaCertificatesScreen() {
                 notAfter = Date.from(LocalDateTime.now().plusDays(365).toInstant(ZoneOffset.UTC)),
                 sha255Fingerprint = "03 5C 31 E7 A9 F3 71 2B 27 1C 5A 8D 82 E5 6C 5B 92 BC FC 28 7F72D7 4A B6 9D 61 BF 53 EF 3E 67",
                 sha1Fingerprint = "9D 80 9B CF 63 AA86 29 E9 3C 78 9A EA DA 15 56 7E BF 56 D8",
+                docTypes = listOf("Doc type 1", "Doc type 2"),
                 certificate = null
             ),
             onDeleteCertificate = {}

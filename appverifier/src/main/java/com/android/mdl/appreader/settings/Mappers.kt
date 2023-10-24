@@ -9,7 +9,7 @@ import java.lang.StringBuilder
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
 
-fun X509Certificate.toCertificateItem(): CertificateItem {
+fun X509Certificate.toCertificateItem(docTypes: List<String> = emptyList()): CertificateItem {
     val subject = this.subjectX500Principal
     val issuer = this.issuerX500Principal
     val sha255Fingerprint = hexWithSpaces(
@@ -36,21 +36,29 @@ fun X509Certificate.toCertificateItem(): CertificateItem {
         notAfter = this.notAfter,
         sha255Fingerprint = sha255Fingerprint,
         sha1Fingerprint = sha1Fingerprint,
+        docTypes = docTypes,
         certificate = this
     )
 }
 
 fun Vical.toVicalItem(): VicalItem {
     val name = VerifierApp.vicalStoreInstance.determineFileName(this)
-    val certificates : MutableList<X509Certificate> = mutableListOf()
-    for (info in this.certificateInfos()){
+    val certificateItems: MutableList<CertificateItem> = mutableListOf()
+    for (info in this.certificateInfos()) {
         if (info != null) {
-            certificates.add(info.certificate())
+            certificateItems.add(
+                info.certificate()
+                    .toCertificateItem(info.docTypes().map { s -> s.toString() }.toList())
+            )
         }
     }
     return VicalItem(
         title = name,
-        certificateItems = certificates.map { it.toCertificateItem() },
+        vicalProvider = this.vicalProvider(),
+        date = this.date(),
+        vicalIssueID = this.vicalIssueID(),
+        nextUpdate = this.nextUpdate(),
+        certificateItems = certificateItems,
         vical = this
     )
 }

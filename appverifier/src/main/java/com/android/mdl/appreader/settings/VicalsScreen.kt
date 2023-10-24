@@ -90,11 +90,19 @@ private fun previewVicalsScreen() {
                 listOf(
                     VicalItem(
                         title = "Test vical 1",
+                        vicalProvider = "Provider 1",
+                        date = LocalDateTime.now().toInstant(ZoneOffset.UTC),
+                        vicalIssueID = 1234,
+                        nextUpdate = LocalDateTime.now().plusDays(10).toInstant(ZoneOffset.UTC),
                         certificateItems = emptyList(),
                         vical = null
                     ),
                     VicalItem(
                         title = "Test vical 2",
+                        vicalProvider = "Provider 2",
+                        date = LocalDateTime.now().toInstant(ZoneOffset.UTC),
+                        vicalIssueID = 1234,
+                        nextUpdate = LocalDateTime.now().plusDays(10).toInstant(ZoneOffset.UTC),
                         certificateItems = emptyList(),
                         vical = null
                     )
