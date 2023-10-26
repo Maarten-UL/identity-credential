@@ -8,9 +8,7 @@ import com.android.mdl.appreader.issuerauth.CaCertificateStore
 import com.android.mdl.appreader.issuerauth.TrustManager
 import com.android.mdl.appreader.issuerauth.VicalStore
 import com.android.mdl.appreader.settings.UserPreferences
-import com.android.mdl.appreader.util.KeysAndCertificates
 import com.google.android.material.color.DynamicColors
-import java.security.cert.X509Certificate
 
 class VerifierApp : Application() {
 
@@ -28,8 +26,7 @@ class VerifierApp : Application() {
     }
 
     private val trustManager by lazy {
-        TrustManager({ KeysAndCertificates.getTrustedIssuerCertificates(this) + caCertificateStoreInstance.getAll() },
-            { vicalStoreInstance.getAll() })
+        TrustManager({ caCertificateStoreInstance.getAll() }, { vicalStoreInstance.getAll() })
     }
 
     override fun onCreate() {

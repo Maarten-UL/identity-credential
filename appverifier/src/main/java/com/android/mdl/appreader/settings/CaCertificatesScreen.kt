@@ -29,7 +29,9 @@ import java.util.Date
 fun CaCertificatesScreen(
     screenState: CaCertificatesScreenState,
     onSelectCertificate: (item: CertificateItem) -> Unit,
-    onImportCertificate: () -> Unit
+    onImportCertificate: () -> Unit,
+    onCopyCertificatesFromResources: () -> Unit,
+    onDeleteAllCertificates: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -76,6 +78,12 @@ fun CaCertificatesScreen(
         }
         Button(onClick = onImportCertificate) {
             Text(text = "Import")
+        }
+        Button(onClick = onCopyCertificatesFromResources) {
+            Text(text = "Copy resources")
+        }
+        Button(onClick = onDeleteAllCertificates) {
+            Text(text = "Delete All")
         }
     }
 }
@@ -131,7 +139,9 @@ private fun previewCaCertificatesScreen() {
                 )
             ),
             onSelectCertificate = {},
-            onImportCertificate = {}
+            onImportCertificate = {},
+            onCopyCertificatesFromResources = {},
+            onDeleteAllCertificates = {}
         )
     }
 }

@@ -10,10 +10,18 @@ private const val DIGITAL_SIGNATURE = 0
 private const val KEY_CERT_SIGN = 5
 
 fun X509Certificate.hasKeyUsageDocumentSigner(): Boolean {
+    if (this.keyUsage == null)
+    {
+        return false
+    }
     return this.keyUsage[DIGITAL_SIGNATURE]
 }
 
 fun X509Certificate.hasKeyUsageCaCertificate(): Boolean {
+    if (this.keyUsage == null)
+    {
+        return false
+    }
     return this.keyUsage[KEY_CERT_SIGN]
 }
 

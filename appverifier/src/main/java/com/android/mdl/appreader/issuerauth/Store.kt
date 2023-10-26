@@ -28,6 +28,16 @@ abstract class Store<T>(val context: Context) {
         }
     }
 
+
+    /**
+     * Check if an item already exists in the store
+     */
+    fun exists(item: T): Boolean {
+        val fileName = sanitizeFilename("${determineFileName(item)}$extension")
+        val file = File(directory, fileName)
+        return file.exists()
+    }
+
     /**
      * Retrieve and parse all the items in the folder
      */
@@ -35,7 +45,7 @@ abstract class Store<T>(val context: Context) {
         return readFiles().map { parse(it.readBytes()) }.toList()
     }
 
-    fun delete(item: T){
+    fun delete(item: T) {
         val fileName = sanitizeFilename("${determineFileName(item)}$extension")
         val file = File(directory, fileName)
         if (file.exists()) {
@@ -56,20 +66,19 @@ abstract class Store<T>(val context: Context) {
     /**
      * Determine the filename (without extension)
      */
-     abstract fun determineFileName(item: T): String
+    abstract fun determineFileName(item: T): String
 
     /**
      * Replace reserved characters in the file name with underscores
      */
     private fun sanitizeFilename(filename: String): String {
-        return filename.replace("[^a-zA-Z0-9.-=, ]".toRegex(), "_")
+        return filename.replace("[^a-zA-Z0-9.=, -]".toRegex(), "_")
     }
 
     /**
      * List all the files in the folder
      */
-    private fun readFiles(): List<File>
-    {
+    private fun readFiles(): List<File> {
         val result = ArrayList<File>()
         if (directory.exists()) {
             directory.walk()
