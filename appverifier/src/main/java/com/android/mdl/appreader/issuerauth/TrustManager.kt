@@ -151,8 +151,8 @@ class TrustManager(
                 if (certificateInfo == null) {
                     continue
                 }
-                val name = X500Name(certificateInfo.certificate().subjectX500Principal.name)
-                for (docType in certificateInfo.docTypes().filter { it.isNullOrEmpty() }) {
+                val name = X500Name(certificateInfo.certificate.subjectX500Principal.name)
+                for (docType in certificateInfo.docTypes.filter { it.isNullOrEmpty() }) {
 
                     // add to certificatesByDocType
                     if (!certificatesByDocType.containsKey(docType)) {
@@ -161,7 +161,7 @@ class TrustManager(
                     if(!certificatesByDocType[docType.toString()]?.containsKey(name)!!)
                     {
                         certificatesByDocType[docType.toString()]?.set(name,
-                            certificateInfo.certificate()
+                            certificateInfo.certificate
                         )
                     }
                     // add to vicalsByDocTypeAndName

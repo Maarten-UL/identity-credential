@@ -47,8 +47,8 @@ fun Vical.toVicalItem(): VicalItem {
     for (info in this.certificateInfos()) {
         if (info != null) {
             certificateItems.add(
-                info.certificate()
-                    .toCertificateItem(info.docTypes().map { s -> s.toString() }.toList())
+                info.certificate
+                    .toCertificateItem(info.docTypes.map { s -> s.toString() }.toList())
             )
         }
     }

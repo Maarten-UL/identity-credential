@@ -4,9 +4,9 @@ import co.nstant.`in`.cbor.model.Array
 import co.nstant.`in`.cbor.model.DataItem
 import co.nstant.`in`.cbor.model.UnicodeString
 import co.nstant.`in`.cbor.model.UnsignedInteger
-import java.lang.ArithmeticException
-import java.lang.RuntimeException
-import java.lang.StringBuilder
+import com.android.mdl.appreader.issuerauth.vical.Vical.Builder
+import com.android.mdl.appreader.issuerauth.vical.Vical.Decoder
+import com.android.mdl.appreader.issuerauth.vical.Vical.Encoder
 import java.security.cert.X509Certificate
 import java.text.ParseException
 import java.text.SimpleDateFormat
@@ -27,7 +27,17 @@ import java.util.stream.Collectors
  *
  * @author UL TS BV
  */
-class Vical private constructor(vicalProvider: String) {
+class Vical {
+
+    data class Fields(var version: String = CURRENT_VERSION, var vicalProvider: String) {
+        var date: Instant? = null
+        var vicalIssueID: Int? = null
+        var nextUpdate: Instant? = null
+        var certificateInfos: MutableList<CertificateInfo> = mutableListOf()
+        var extensions: co.nstant.`in`.cbor.model.Map? = null
+        var rfu = co.nstant.`in`.cbor.model.Map()
+    }
+
     /**
      * The builder to create a Vical instance.
      *
@@ -36,7 +46,8 @@ class Vical private constructor(vicalProvider: String) {
      */
     class Builder : InstanceBuilder<Vical?> {
         // private String vicalProvider;
-        private var vical: Vical
+
+        private var fields: Fields
 
         /**
          * Creates an instance with the minimum of information, the provider and the date.
@@ -46,11 +57,11 @@ class Vical private constructor(vicalProvider: String) {
          * @param vicalIssueID the ID of this VICAL
          */
         constructor(vicalProvider: String, date: Instant?, vicalIssueID: Int?) {
-            vical = Vical(vicalProvider)
-            vical.version = CURRENT_VERSION
-            vical.date = date
-            vical.vicalIssueID = vicalIssueID
-            vical.certificateInfos = LinkedList()
+            fields = Fields(vicalProvider = vicalProvider)
+            // fields.version = CURRENT_VERSION
+            fields.date = date
+            fields.vicalIssueID = vicalIssueID
+            fields.certificateInfos = LinkedList()
         }
 
         /**
@@ -62,11 +73,12 @@ class Vical private constructor(vicalProvider: String) {
          * @param vicalIssueID the ID of this VICAL
          */
         constructor(previousVical: Vical, date: Instant?, vicalIssueID: Int?) {
-            vical = Vical(previousVical.vicalProvider)
-            vical.version = previousVical.version
-            vical.date = date
-            vical.vicalIssueID = vicalIssueID
-            vical.certificateInfos = LinkedList(previousVical.certificateInfos)
+
+
+            fields = Fields(previousVical.version, previousVical.vicalProvider)
+            fields.date = date
+            fields.vicalIssueID = vicalIssueID
+            fields.certificateInfos = LinkedList(previousVical.certificateInfos)
         }
 
         /**
@@ -77,7 +89,7 @@ class Vical private constructor(vicalProvider: String) {
          * @return the builder itself
          */
         fun nextUpdate(nextUpdate: Instant): Builder {
-            vical.nextUpdate = nextUpdate
+            fields.nextUpdate = nextUpdate
             return this
         }
 
@@ -90,7 +102,7 @@ class Vical private constructor(vicalProvider: String) {
          * @return the builder itself
          */
         fun addCertificateInfo(certInfo: CertificateInfo): Builder {
-            vical.certificateInfos.add(certInfo)
+            fields.certificateInfos.add(certInfo)
             return this
         }
 
@@ -101,7 +113,7 @@ class Vical private constructor(vicalProvider: String) {
          * @return the list of certificates that match
          */
         fun returnMatchingCertificateInfos(matcher: (CertificateInfo) -> Boolean): List<CertificateInfo> {
-            return vical.certificateInfos.parallelStream()
+            return fields.certificateInfos.parallelStream()
                 .filter(matcher)
                 .collect(Collectors.toList())
         }
@@ -114,7 +126,7 @@ class Vical private constructor(vicalProvider: String) {
          */
         fun certificateInfoFor(certificate: X509Certificate): CertificateInfo? {
             val certificateInfos =
-                returnMatchingCertificateInfos { x: CertificateInfo -> x.certificate() == certificate }
+                returnMatchingCertificateInfos { x: CertificateInfo -> x.certificate == certificate }
             return if (certificateInfos.isEmpty()) null else certificateInfos[0]
         }
 
@@ -125,7 +137,7 @@ class Vical private constructor(vicalProvider: String) {
          * @return the builder itself
          */
         fun removeMatchingCertificateInfos(matcher: (CertificateInfo) -> Boolean): Builder {
-            vical.certificateInfos = vical.certificateInfos.parallelStream()
+            fields.certificateInfos = fields.certificateInfos.parallelStream()
                 .filter(matcher)
                 .collect(Collectors.toList())
             return this
@@ -137,10 +149,10 @@ class Vical private constructor(vicalProvider: String) {
          * @param value the value of the extension
          */
         fun addExtension(key: UnicodeString?, value: DataItem?) {
-            if (vical.extensions == null) {
-                vical.extensions = co.nstant.`in`.cbor.model.Map()
+            if (fields.extensions == null) {
+                fields.extensions = co.nstant.`in`.cbor.model.Map()
             }
-            vical.extensions!!.put(key, value)
+            fields.extensions!!.put(key, value)
         }
 
         /**
@@ -151,14 +163,14 @@ class Vical private constructor(vicalProvider: String) {
          * @param value the value
          */
         fun addRFU(key: UnicodeString?, value: DataItem?) {
-            vical.rfu.put(key, value)
+            fields.rfu.put(key, value)
         }
 
         /**
          * Builds the VICAL and returns it.
          */
         override fun build(): Vical {
-            return vical
+            return Vical(fields)
         }
     }
 
@@ -166,7 +178,8 @@ class Vical private constructor(vicalProvider: String) {
      * An encoder to encode instances of the `Vical` class.
      */
     class Encoder : DataItemEncoder<co.nstant.`in`.cbor.model.Map, Vical> {
-        override fun encode(vical: Vical): co.nstant.`in`.cbor.model.Map {
+        override fun encode(t: Vical): co.nstant.`in`.cbor.model.Map {
+            val vical = t
             val map = co.nstant.`in`.cbor.model.Map(4)
             map.put(RequiredVicalKey.VERSION.getUnicodeString(), UnicodeString(vical.version()))
             map.put(
@@ -178,14 +191,11 @@ class Vical private constructor(vicalProvider: String) {
             if (vicalIssueID != null) {
                 map.put(
                     OptionalVicalKey.VICAL_ISSUE_ID.getUnicodeString(),
-                    // TODO lookup
                     UnsignedInteger(vicalIssueID.toBigInteger())
                 )
             }
             val certificateInfos = vical.certificateInfos()
-            // TODO put in the correct structure
             val certInfoEncoder = CertificateInfo.Encoder()
-            // TODO we are here
             val certificateInfoArray = Array()
             for (certificateInfo in certificateInfos) {
                 certificateInfoArray.add(certInfoEncoder.encode(certificateInfo))
@@ -205,8 +215,9 @@ class Vical private constructor(vicalProvider: String) {
             return map
         }
 
-        fun encodeToBytes() {
-            // TODO implement (?)
+        fun encodeToSignedBytes(t: Vical, signer: VicalSigner): ByteArray {
+            val encodedVical = encodeToBytes(t)
+            return signer.createCose1Signature(encodedVical)
         }
     }
 
@@ -215,7 +226,8 @@ class Vical private constructor(vicalProvider: String) {
      */
     class Decoder : DataItemDecoder<Vical, co.nstant.`in`.cbor.model.Map> {
         @Throws(DataItemDecoderException::class)
-        override fun decode(map: co.nstant.`in`.cbor.model.Map): Vical {
+        override fun decode(di: co.nstant.`in`.cbor.model.Map): Vical {
+            val map = di
 
             // === first get the required fields and create the instance
             val version = decodeVersion(map)
@@ -226,22 +238,21 @@ class Vical private constructor(vicalProvider: String) {
                 throw RuntimeException("Unknown version")
             }
             val vicalProvider = decodeVicalProvider(map)
-            val vical = Vical(vicalProvider)
-            vical.version = version
+            val fields = Fields(version, vicalProvider)
             try {
-                vical.date = decodeDate(map)
+                fields.date = decodeDate(map)
             } catch (e: ParseException) {
                 throw DataItemDecoderException("Could not parse VICAL date", e)
             }
-            vical.certificateInfos = decodeCertificateInfos(map)
+            fields.certificateInfos = decodeCertificateInfos(map)
 
             // === now get the optional fields
             val vicalIssueID = decodeVicalIssueID(map)
 
-            vical.vicalIssueID = vicalIssueID
-            vical.extensions = decodeExtensions(map)
-            vical.rfu = decodeRFU(map)
-            return vical
+            fields.vicalIssueID = vicalIssueID
+            fields.extensions = decodeExtensions(map)
+            fields.rfu = decodeRFU(map)
+            return Vical(fields)
         }
 
         @Throws(DataItemDecoderException::class)
@@ -263,17 +274,9 @@ class Vical private constructor(vicalProvider: String) {
         }
 
         private fun decodeVicalIssueID(map: co.nstant.`in`.cbor.model.Map): Int? {
-            val vicalIssueID_DI = (map[OptionalVicalKey.VICAL_ISSUE_ID.getUnicodeString()]
-                ?: return null) as? UnsignedInteger ?: throw RuntimeException()
-            val vicalIssueID_BI = vicalIssueID_DI.value
-            val vicalIssueID: Int
-            vicalIssueID = try {
-                // TODO  was intValueExact of higher API level, check if still OK
-                vicalIssueID_BI.toInt()
-            } catch (e: ArithmeticException) {
-                throw RuntimeException(e)
-            }
-            return vicalIssueID
+            val vicalIssueID = map[OptionalVicalKey.VICAL_ISSUE_ID.getUnicodeString()]
+                ?: return null
+            return (vicalIssueID as UnsignedInteger).value.toInt()
         }
 
         @Throws(ParseException::class)
@@ -281,7 +284,7 @@ class Vical private constructor(vicalProvider: String) {
             // TODO Auto-    static DataItem createTDate(Instant instant) {
             val dateDI = map[RequiredVicalKey.DATE.getUnicodeString()] as? UnicodeString
                 ?: throw RuntimeException()
-            var tdateString: String = (dateDI as UnicodeString).getString()
+            var tdateString: String = dateDI.string
 
             // WARNING fixing data's incorrect parsing of date string, scaling down to millisecond scale
             val tdateWithFraction =
@@ -289,15 +292,15 @@ class Vical private constructor(vicalProvider: String) {
             val tdateWithFractionMatcher =
                 tdateWithFraction.matcher(tdateString)
             if (tdateWithFractionMatcher.matches()) {
-                tdateString = tdateWithFractionMatcher.group(1) + tdateWithFractionMatcher.group(2)
-                    .substring(0, 3)
+                tdateString = (
+                    tdateWithFractionMatcher.group(1)!! +
+                    tdateWithFractionMatcher.group(2)!!.substring(0, 3))
             }
 
 //            Instant date = Instant.from(DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC).parse(tdateString));
             val inputFormat =
                 SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS")
-            val parsedDate: Date
-            parsedDate = try {
+            val parsedDate = try {
                 inputFormat.parse(tdateString)
             } catch (e: ParseException) {
                 // TODO provide better runtime exception
@@ -310,14 +313,14 @@ class Vical private constructor(vicalProvider: String) {
             val versionDI = map[RequiredVicalKey.VERSION.getUnicodeString()] as? UnicodeString
                 ?: throw RuntimeException()
             // TODO also check tag?
-            return (versionDI as UnicodeString).getString()
+            return versionDI.string
         }
 
         private fun decodeVicalProvider(map: co.nstant.`in`.cbor.model.Map): String {
             val vicalProviderDI =
                 map[RequiredVicalKey.VICAL_PROVIDER.getUnicodeString()] as? UnicodeString
                     ?: throw RuntimeException()
-            return (vicalProviderDI as UnicodeString).getString()
+            return vicalProviderDI.string
         }
 
         @Throws(DataItemDecoderException::class)
@@ -353,19 +356,72 @@ class Vical private constructor(vicalProvider: String) {
             }
             return rfu
         }
+
+        fun verifyAndDecodeSignedBytes(encodedAndSignedBytes: ByteArray, verifier: VicalVerifier): Vical {
+            val verificationResult = verifier.verifyCose1Signature(encodedAndSignedBytes)
+            // TODO something with verificationResult.code()?
+            val code = verificationResult.code();
+            if (code != VicalVerificationResult.Code.VERIFICATION_SUCCEEDED) {
+                // TODO think about this higher level exception
+                throw RuntimeException("Verification did not succeed, result : " + code);
+            }
+
+            val content = verificationResult.content()
+            return decode(content!! as co.nstant.`in`.cbor.model.Map)
+        }
     }
 
-    private var version: String
-    private val vicalProvider: String
-    private var date: Instant? = null
-    private var vicalIssueID: Int? = null
-    private var nextUpdate: Instant? = null
-    private lateinit var certificateInfos: MutableList<CertificateInfo>
-    private var extensions: co.nstant.`in`.cbor.model.Map? = null
+    private val fields: Fields
+
+    private constructor(fields: Fields) {
+        this.fields = fields
+    }
+
+    val version: String
+        get() {
+            return fields.version
+        }
+
+    val vicalProvider: String
+        get() {
+            return fields.vicalProvider
+        }
+
+    val date: Instant?
+        get() {
+            return fields.date
+        }
+
+    val vicalIssueID: Int?
+        get() {
+            return fields.vicalIssueID
+        }
+
+
+    val nextUpdate: Instant?
+        get() {
+            return fields.nextUpdate
+        }
+
+    // TODO remove lateinit
+    val certificateInfos: MutableList<CertificateInfo>
+        get() {
+            return fields.certificateInfos
+        }
+
+    val extensions: co.nstant.`in`.cbor.model.Map?
+        get() {
+            return fields.extensions
+        }
 
     // lazy instantiation, null means no extensions (as it is an optional keyed field)
     // always instantiated, empty means no RFU
-    private var rfu = co.nstant.`in`.cbor.model.Map()
+    // TODO currently not late instantiated after Kotlin conversion
+    val rfu: co.nstant.`in`.cbor.model.Map
+        get() {
+            return fields.rfu
+        }
+
     fun version(): String {
         return version
     }
@@ -386,7 +442,7 @@ class Vical private constructor(vicalProvider: String) {
         return nextUpdate
     }
 
-    fun certificateInfos(): List<CertificateInfo?> {
+    fun certificateInfos(): List<CertificateInfo> {
         return Collections.unmodifiableList(certificateInfos)
     }
 
@@ -424,7 +480,7 @@ class Vical private constructor(vicalProvider: String) {
             if (nextUpdate == null) "<unknown>" else String.format("%d", nextUpdate)
         sb.append(String.format("nextUpdate: %s%n", nextUpdateString))
         var count = 0
-        for (certInfo in certificateInfos!!) {
+        for (certInfo in certificateInfos) {
             count++
             sb.append(String.format(" --- CertificateInfo #%d --- %n", count))
             sb.append(certInfo)
@@ -437,10 +493,5 @@ class Vical private constructor(vicalProvider: String) {
 
     companion object {
         const val CURRENT_VERSION = "1.0"
-    }
-
-    init {
-        version = CURRENT_VERSION
-        this.vicalProvider = vicalProvider
     }
 }

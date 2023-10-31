@@ -9,7 +9,7 @@ import co.nstant.`in`.cbor.model.DataItem
  * @param <T> the type of data that will be decoded
  * @param <DI> the type of DataItem to be decoded
 </DI></T> */
-interface DataItemDecoder<T, DI : DataItem?> {
+interface DataItemDecoder<T, DI : DataItem> {
     /**
      * Decodes the provided DataItem of type DI into data of type T.
      *

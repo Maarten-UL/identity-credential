@@ -12,11 +12,12 @@ import java.util.HashSet
 import java.util.regex.Pattern
 
 object Util {
-    private val TAG_TDATE = Tag(0)
+    val TAG_TDATE = Tag(0)
+
     fun createTDate(instant: Instant?): DataItem {
         val tdateString = DateTimeFormatter.ISO_INSTANT.withZone(ZoneOffset.UTC).format(instant)
         val tdate = UnicodeString(tdateString)
-        tdate.setTag(TAG_TDATE.tag)
+        tdate.setTag(TAG_TDATE)
         return tdate
     }
 
@@ -25,7 +26,7 @@ object Util {
             // TODO think of better exception
             throw RuntimeException()
         }
-        val tdate: UnicodeString = tdateDI as UnicodeString
+        val tdate: UnicodeString = tdateDI
         if (!(tdate.hasTag() || tdate.getTag() == TAG_TDATE)) {
             // TODO think of better exception
             throw RuntimeException()
@@ -63,11 +64,11 @@ object Util {
         if (obj !is DataItem) {
             throw DataItemDecoderException("$expectedField structure is not a DataItem")
         }
-        val di: DataItem = obj as DataItem
+        val di: DataItem = obj
         if (!(di.getMajorType() == MajorType.MAP && di is Map)) {
             throw DataItemDecoderException("$expectedField structure is not a Map")
         }
-        val map = di as Map
+        val map = di
         val keys: Collection<DataItem> = map.keys
         for (key in keys) {
             if (!(key.getMajorType() == MajorType.UNICODE_STRING && key is UnicodeString)) {
@@ -84,7 +85,7 @@ object Util {
         return "urn:oid:$dotNotationOid"
     }
 
-    fun urnStringToOid(oidUrn: String?): String {
+    fun urnStringToOid(oidUrn: String): String {
         val matcher = Pattern.compile(
             "urn:oid:([1-9]\\d*(?:[.][1-9]\\d*)*)",
             Pattern.CASE_INSENSITIVE
@@ -92,7 +93,7 @@ object Util {
         if (!matcher.matches()) {
             throw RuntimeException("Input is not a OID URN")
         }
-        return matcher.group(1)
+        return matcher.group(1)!!
     }
 
     fun getEntrySet(cborMap: Map): Set<kotlin.collections.Map.Entry<UnicodeString, DataItem>> {

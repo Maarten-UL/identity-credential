@@ -15,9 +15,6 @@
  */
 package com.android.mdl.appreader.issuerauth.vical
 
-import com.android.mdl.appreader.issuerauth.vical.OptionalCertificateInfoKey
-import com.android.mdl.appreader.issuerauth.vical.InstanceBuilder
-import com.android.mdl.appreader.issuerauth.vical.CertificateInfo
 import co.nstant.`in`.cbor.CborBuilder
 import co.nstant.`in`.cbor.CborDecoder
 import co.nstant.`in`.cbor.CborEncoder
@@ -135,15 +132,14 @@ internal object IdentityUtil {
 
     fun cborDecode(encodedBytes: ByteArray?): DataItem {
         val bais = ByteArrayInputStream(encodedBytes)
-        var dataItems: List<DataItem>? = null
-        dataItems = try {
+        var dataItems = try {
             CborDecoder(bais).decode()
         } catch (e: CborException) {
             throw IllegalArgumentException("Error decoding CBOR", e)
         }
-        require(dataItems!!.size == 1) {
+        require(dataItems.size == 1) {
             ("Unexpected number of items, expected 1 got "
-                    + dataItems!!.size)
+                    + dataItems.size)
         }
         return dataItems.get(0)
     }
@@ -211,8 +207,8 @@ internal object IdentityUtil {
         }
         val df = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
         df.timeZone = parsedTz
-        var date: Date = try {
-            df.parse(dateString)
+        val date: Date = try {
+            df.parse(dateString)!!
         } catch (e: ParseException) {
             throw RuntimeException("Error parsing string", e)
         }
@@ -237,6 +233,7 @@ internal object IdentityUtil {
             throw IllegalArgumentException("Expected type $clazz, got type $givenClazz")
         }
 
+        @Suppress("UNCHECKED_CAST")
         return value as T
     }
 
@@ -437,8 +434,7 @@ internal object IdentityUtil {
         protectedHeadersMap.put(COSE_LABEL_ALG, alg)
         val protectedHeadersBytes = cborEncode(protectedHeaders.build().get(0))
         val toBeSigned = coseBuildToBeSigned(protectedHeadersBytes, data, additionalData)
-        var coseSignature: ByteArray? = null
-        coseSignature = try {
+        var coseSignature = try {
             s.update(toBeSigned)
             val derSignature = s.sign()
             signatureDerToCose(derSignature, keySize)
@@ -629,7 +625,7 @@ internal object IdentityUtil {
 
         // brute-force but good enough since users will only pass relatively small amounts of data.
         for (off in 0 until haystack.size - needle.size) {
-            if (haystack.sliceArray(IntRange(off, off + needle.size)) == needle) {
+            if (haystack.sliceArray(IntRange(off, off + needle.size)).contentEquals(needle)) {
                 return true
             }
 
@@ -716,7 +712,7 @@ internal object IdentityUtil {
      * Retrieves the X509 certificate chain (x5chain) from the COSE_Sign1 signature.
      *
      * @return the empty collection if no x5chain is included in the structure
-     * @throws a runtime exception if the given bytes aren't valid COSE_Sign1
+     * @throws RuntimeException if the given bytes aren't valid COSE_Sign1
      */
     @Throws(IllegalArgumentException::class)
     fun coseSign1GetX5Chain(
@@ -740,7 +736,7 @@ internal object IdentityUtil {
                     )
                     ret.add(factory.generateCertificate(certBais) as X509Certificate)
                 } else if (x5chainItem is Array) {
-                    val x5chainItemArray: Array = x5chainItem as Array
+                    val x5chainItemArray: Array = x5chainItem
                     // NOTE was: for (DataItem certItem : castTo(Array.class, x5chainItem).getDataItems()) {
                     for (certItem in x5chainItemArray.getDataItems()) {
                         val certBais = ByteArrayInputStream(

@@ -64,18 +64,64 @@ import java.util.*
  */
 // NOTE class currently not made Serializable due to the extensions (CBOR DataItem) not being serializable
 // equals and hashCode have been implemented though
-class CertificateInfo {
+class CertificateInfo private constructor(private val fields: Fields) {
+
+    /**
+     * Data class used for the various fields of CertificateInfo.
+     * This is a mutable class that can be used in the CertificateInfo class as well as the
+     * builder, encoder & decoder classes.
+     */
+    data class Fields (
+        val certificate: X509Certificate,
+        val serialNumber: BigInteger,
+        val ski: ByteArray,
+        val docTypes: Set<String>) {
+        // var? issuingAuthority: String
+
+
+        var version: String? = null
+
+        // optional (nullable) fields, copied from certificate
+        var certificateProfile: MutableSet<String> = HashSet()
+        var issuingCountry: String? = null
+        var stateOrProvinceName: String? = null
+        var issuer: ByteArray? = null
+        var subject: ByteArray? = null
+        var notBefore: Instant? = null
+        var notAfter: Instant? = null
+
+        // optional (nullable) field, provided separately
+        var issuingAuthority: String? = null
+
+        // lazy instantiation, null means no extensions (as it is an optional keyed field)
+        var extensions: co.nstant.`in`.cbor.model.Map? = null
+
+        // always instantiated, empty means no RFU
+        var rfu: co.nstant.`in`.cbor.model.Map = co.nstant.`in`.cbor.model.Map()
+    }
+
     /**
      * The builder to create a CertificateInfo instance.
      *
      * The resulting `CertificateInfo` instances can be used as input to [Builder].
      */
     class Builder(
-        cert: X509Certificate, docTypes: Set<String?>,
+        cert: X509Certificate,
+        docTypes: Set<String>,
         optionalCertificateFields: Set<OptionalCertificateInfoKey>
     ) : InstanceBuilder<CertificateInfo?> {
-        private val certInfo: CertificateInfo
-        private var certHolder: X509CertificateHolder? = null
+
+        private lateinit var fields: Fields
+        private lateinit var certHolder: X509CertificateHolder
+
+        init {
+            val ski = getSubjectPublicKeyIdentifier(cert)
+            val serialNumber = cert.serialNumber
+            this.fields = Fields(cert, serialNumber, ski, docTypes)
+            this.certHolder = X509CertificateHolder(cert.getEncoded())
+            optionalCertificateFields.forEach{copyCertificateInformation(it)}
+        }
+
         private fun copyCertificateInformation(certificateInfoKey: OptionalCertificateInfoKey) {
             when (certificateInfoKey) {
                 OptionalCertificateInfoKey.CERTIFICATE_PROFILE -> copyCertificateProfile()
@@ -99,7 +145,7 @@ class CertificateInfo {
          */
         fun indicateIssuingAuthority(issuingAuthority: String?) {
             requireNotNull(issuingAuthority) { "The indicated issuingAuthority should not be null" }
-            certInfo.issuingAuthority = issuingAuthority
+            this.fields.issuingAuthority = issuingAuthority
         }
 
         /**
@@ -109,7 +155,7 @@ class CertificateInfo {
          */
         fun indicateIssuingCountry(issuingCountry: String?) {
             requireNotNull(issuingCountry) { "The indicated issuingCountry should not be null" }
-            certInfo.issuingCountry = issuingCountry
+            this.fields.issuingCountry = issuingCountry
         }
 
         /**
@@ -119,7 +165,7 @@ class CertificateInfo {
          */
         fun indicateStateOrProvinceName(stateOrProvinceName: String?) {
             requireNotNull(stateOrProvinceName) { "The indicated stateOrProvinceName should not be null" }
-            certInfo.stateOrProvinceName = stateOrProvinceName
+            this.fields.stateOrProvinceName = stateOrProvinceName
         }
 
         /**
@@ -128,10 +174,10 @@ class CertificateInfo {
          * @param value the value of the extension
          */
         fun addExtension(key: UnicodeString?, value: DataItem?) {
-            if (certInfo.extensions == null) {
-                certInfo.extensions = co.nstant.`in`.cbor.model.Map()
+            if (this.fields.extensions == null) {
+                this.fields.extensions = co.nstant.`in`.cbor.model.Map()
             }
-            certInfo.extensions!!.put(key, value)
+            this.fields.extensions!!.put(key, value)
         }
 
         /**
@@ -142,7 +188,7 @@ class CertificateInfo {
          * @param value the value
          */
         fun addRFU(key: UnicodeString?, value: DataItem?) {
-            certInfo.rfu.put(key, value)
+            this.fields.rfu.put(key, value)
         }
 
         /*
@@ -152,7 +198,7 @@ class CertificateInfo {
             // WARNING: specification is unclear w.r.t. how certificateProfile is formatted,
             // or how to use this key / value pair
             val keyUsages: List<String>? = try {
-                certInfo.certificate.extendedKeyUsage
+                this.fields.certificate.extendedKeyUsage
             } catch (e: CertificateParsingException) {
                 // TODO provide better runtime exception
                 throw RuntimeException(
@@ -161,9 +207,9 @@ class CertificateInfo {
                 )
             }
             if (keyUsages != null) {
-                certInfo.certificateProfile.addAll(keyUsages)
+                this.fields.certificateProfile.addAll(keyUsages)
                 for (keyUsage in keyUsages) {
-                    certInfo.certificateProfile.add("urn:oid:$keyUsage")
+                    this.fields.certificateProfile.add("urn:oid:$keyUsage")
                 }
             }
 
@@ -171,12 +217,12 @@ class CertificateInfo {
         }
 
         private fun copyIssuingAuthority() {
-            certInfo.issuingAuthority = certHolder!!.issuer.toString()
+            this.fields.issuingAuthority = this.certHolder.issuer.toString()
         }
 
         private fun copyIssuingCountry() {
-            val issuer = certHolder!!.issuer
-            val rdns = certHolder!!.issuer.getRDNs(BCStyle.C)
+            val issuer = certHolder.issuer
+            val rdns = certHolder.issuer.getRDNs(BCStyle.C)
             if (rdns.size != 1) {
                 throw RuntimeException(
                     "No country or multiple countries indicated for issuer: $issuer"
@@ -189,14 +235,14 @@ class CertificateInfo {
                             + issuer.toString()
                 )
             }
-            certInfo.issuingCountry = IETFUtils.valueToString(
+            this.fields.issuingCountry = IETFUtils.valueToString(
                 countryTypesAndValues[0].value
             )
         }
 
         private fun copyStateOrProvince() {
-            val issuer = certHolder!!.issuer
-            val rdns = certHolder!!.issuer.getRDNs(BCStyle.ST)
+            val issuer = certHolder.issuer
+            val rdns = certHolder.issuer.getRDNs(BCStyle.ST)
             if (rdns.size != 1) {
                 // TODO think of ways to make this "copy if present" in settings
                 //                throw new RuntimeException(
@@ -210,7 +256,7 @@ class CertificateInfo {
                             + issuer.toString()
                 )
             }
-            certInfo.stateOrProvinceName = IETFUtils.valueToString(
+            this.fields.stateOrProvinceName = IETFUtils.valueToString(
                 stateOrProvinceTypesAndValues[0].value
             )
         }
@@ -218,7 +264,7 @@ class CertificateInfo {
         // TODO check if this is indeed a "binary copy"
         private fun copyIssuer() {
             try {
-                certInfo.issuer = certHolder!!.issuer.encoded
+                this.fields.issuer = certHolder.issuer.encoded
             } catch (e: IOException) {
                 throw RuntimeException("Could not re-encode issuer", e)
             }
@@ -227,22 +273,22 @@ class CertificateInfo {
         // TODO check if this is indeed a "binary copy"
         private fun copySubject() {
             try {
-                certInfo.subject = certHolder!!.subject.encoded
+                this.fields.subject = certHolder.subject.encoded
             } catch (e: IOException) {
                 throw RuntimeException("Could not re-encode subject", e)
             }
         }
 
         private fun copyNotBefore() {
-            certInfo.notBefore = certHolder!!.notBefore.toInstant()
+            this.fields.notBefore = certHolder.notBefore.toInstant()
         }
 
         private fun copyNotAfter() {
-            certInfo.notAfter = certHolder!!.notAfter.toInstant()
+            this.fields.notAfter = certHolder.notAfter.toInstant()
         }
 
         override fun build(): CertificateInfo {
-            return certInfo
+            return CertificateInfo(this.fields)
         }
 
         /**
@@ -257,10 +303,10 @@ class CertificateInfo {
          * for more information
          */
         init {
-            require(docTypes.isNotEmpty()) { "At least one docType has to be provided for each certificate" }
-            certInfo = CertificateInfo(cert, docTypes)
+            require(fields.docTypes.isNotEmpty()) { "At least one docType has to be provided for each certificate" }
+            // fields.certInfo = CertificateInfo(fields.cert, fields.docTypes)
             try {
-                certHolder = X509CertificateHolder(cert.encoded)
+                certHolder = X509CertificateHolder(fields.certificate.encoded)
             } catch (e: CertificateEncodingException) {
                 throw RuntimeException(
                     "Error re-coding the certificate to X509CertificateHolder",
@@ -283,11 +329,8 @@ class CertificateInfo {
      *
      * This class is usually called by [com.android.mdl.appreader.issuerauth.vical.Vical.Encoder] directly.
      */
-    class Encoder
-    /**
-     * Creates an Encoder instance specific to [CertificateInfo] instances.
-     */
-        : DataItemEncoder<co.nstant.`in`.cbor.model.Map, CertificateInfo?> {
+    class Encoder: DataItemEncoder<co.nstant.`in`.cbor.model.Map, CertificateInfo> {
+
         /**
          * Encodes a CertificateInfo into a CBOR structure, which is part of the overall VICAL structure.
          * The CBOR structure can be encoded to binary using [CborEncoder.encode].
@@ -296,12 +339,13 @@ class CertificateInfo {
          * @param certificateInfo The `CertificateInfo` instance to encode
          * @return the encoded `CertificateInfo` instance as CBOR structure
          */
-        override fun encode(certificateInfo: CertificateInfo?): co.nstant.`in`.cbor.model.Map {
+        override fun encode(t: CertificateInfo): co.nstant.`in`.cbor.model.Map {
+            val certificateInfo = t
             val map = co.nstant.`in`.cbor.model.Map(4)
             try {
                 map.put(
                     RequiredCertificateInfoKey.CERTIFICATE.getUnicodeString(), ByteString(
-                        certificateInfo!!.certificate().encoded
+                        certificateInfo.fields.certificate.encoded
                     )
                 )
             } catch (e: CertificateEncodingException) {
@@ -310,17 +354,18 @@ class CertificateInfo {
             }
             val string = ByteString(
                 toUnsigned(
-                    certificateInfo.serialNumber()
+                    // TODO skip if not present instead of crashing
+                    certificateInfo.fields.serialNumber!!
                 )
             )
             string.setTag(TAG_BIGUINT.toLong())
             map.put(RequiredCertificateInfoKey.SERIAL_NUMBER.getUnicodeString(), string)
             map.put(
                 RequiredCertificateInfoKey.SKI.getUnicodeString(), ByteString(
-                    certificateInfo.ski()
+                    certificateInfo.fields.ski
                 )
             )
-            val profiles = certificateInfo.certificateProfile()
+            val profiles = certificateInfo.fields.certificateProfile
             if (profiles.isNotEmpty()) {
                 val profileArray = Array()
                 for (profile in profiles) {
@@ -331,56 +376,56 @@ class CertificateInfo {
                     profileArray
                 )
             }
-            val issuingAuthority = certificateInfo.issuingAuthority()
+            val issuingAuthority = certificateInfo.fields.issuingAuthority
             if (issuingAuthority != null) {
                 map.put(
                     OptionalCertificateInfoKey.ISSUING_AUTHORITY.getUnicodeString(),
                     UnicodeString(issuingAuthority)
                 )
             }
-            val issuingCountry = certificateInfo.issuingCountry()
+            val issuingCountry = certificateInfo.fields.issuingCountry
             if (issuingCountry != null) {
                 map.put(
                     OptionalCertificateInfoKey.ISSUING_COUNTRY.getUnicodeString(),
                     UnicodeString(issuingCountry)
                 )
             }
-            val stateOrProvinceName = certificateInfo.stateOrProvinceName()
+            val stateOrProvinceName = certificateInfo.fields.stateOrProvinceName
             if (stateOrProvinceName != null) {
                 map.put(
                     OptionalCertificateInfoKey.STATE_OR_PROVINCE_NAME.getUnicodeString(),
                     UnicodeString(stateOrProvinceName)
                 )
             }
-            val issuer = certificateInfo.issuer()
+            val issuer = certificateInfo.fields.issuer
             if (issuer != null) {
                 map.put(
                     OptionalCertificateInfoKey.ISSUER.getUnicodeString(),
                     ByteString(issuer)
                 )
             }
-            val subject = certificateInfo.subject()
+            val subject = certificateInfo.fields.subject
             if (subject != null) {
                 map.put(
                     OptionalCertificateInfoKey.SUBJECT.getUnicodeString(),
                     ByteString(subject)
                 )
             }
-            val notBefore = certificateInfo.notBefore()
+            val notBefore = certificateInfo.fields.notBefore
             if (notBefore != null) {
                 map.put(
                     OptionalCertificateInfoKey.NOT_BEFORE.getUnicodeString(),
                     Util.createTDate(notBefore)
                 )
             }
-            val notAfter = certificateInfo.notAfter()
+            val notAfter = certificateInfo.fields.notAfter
             if (notAfter != null) {
                 map.put(
                     OptionalCertificateInfoKey.NOT_AFTER.getUnicodeString(),
                     Util.createTDate(notAfter)
                 )
             }
-            val docTypes = certificateInfo.docTypes()
+            val docTypes = certificateInfo.fields.docTypes
             val docTypeArray = Array(docTypes.size)
             for (docType in docTypes) {
                 docTypeArray.add(UnicodeString(docType))
@@ -388,11 +433,11 @@ class CertificateInfo {
             map.put(RequiredCertificateInfoKey.DOC_TYPE.getUnicodeString(), docTypeArray)
 
             // extensions is directly put in; it should contain a map in all probability, but it is defined as any
-            val extensions = certificateInfo.extensions()
+            val extensions = certificateInfo.fields.extensions
             if (extensions != null) {
                 map.put(OptionalCertificateInfoKey.EXTENSIONS.getUnicodeString(), extensions)
             }
-            val rfu = certificateInfo.rfu()
+            val rfu = certificateInfo.fields.rfu
             val entrySet: Set<Map.Entry<UnicodeString, DataItem>> = Util.getEntrySet(rfu)
             for ((key, value) in entrySet) {
                 map.put(key, value)
@@ -420,17 +465,22 @@ class CertificateInfo {
      *
      * Currently the decoder does not support any undefined or RFU fields.
      */
-    class Decoder : DataItemDecoder<CertificateInfo, co.nstant.`in`.cbor.model.Map?> {
+    class Decoder : DataItemDecoder<CertificateInfo, co.nstant.`in`.cbor.model.Map> {
         @Throws(DataItemDecoderException::class)
-        override fun decode(map: co.nstant.`in`.cbor.model.Map?): CertificateInfo {
+        override fun decode(di: co.nstant.`in`.cbor.model.Map): CertificateInfo {
+
+            val map = di
+            // var fields: CertificateInfoFields
 
             // === first get the required fields and create the instance
-            val certInfo: CertificateInfo = try {
+            val fields: Fields
+            try {
                 val cert = decodeCertificate(map)
                 val serialNumber = decodeSerialNumber(map)
                 val ski = decodeSki(map)
-                val docType = decodeDocType(map)
-                CertificateInfo(cert, serialNumber, ski, docType)
+                val docTypes = decodeDocType(map)
+                fields = Fields(cert, serialNumber, ski, docTypes)
+
             } catch (e: CertificateException) {
                 throw DataItemDecoderException("Could not decode certificate")
             }
@@ -439,16 +489,16 @@ class CertificateInfo {
             // === now get the optional fields
             //     CERTIFICATE_PROFILE, ISSUING_AUTHORITY, ISSUING_COUNTRY, STATE_OR_PROVINCE_NAME, ISSUER, SUBJECT,
             // NOT_BEFORE, NOT_AFTER, EXTENSIONS;
-            certInfo.certificateProfile = decodeCertificateProfile(map)
-            certInfo.issuingAuthority = decodeIssuingAuthority(map)
-            certInfo.issuingCountry = decodeIssuingCountry(map)
-            certInfo.stateOrProvinceName = decodeStateOrProvinceName(map)
-            certInfo.issuer = decodeIssuer(map)
-            certInfo.subject = decodeSubject(map)
-            certInfo.notBefore = decodeNotBefore(map)
-            certInfo.notAfter = decodeNotAfter(map)
-            certInfo.extensions = decodeExtensions(map)
-            certInfo.rfu = decodeRFU(map)
+            fields.certificateProfile = decodeCertificateProfile(map)
+            fields.issuingAuthority = decodeIssuingAuthority(map)
+            fields.issuingCountry = decodeIssuingCountry(map)
+            fields.stateOrProvinceName = decodeStateOrProvinceName(map)
+            fields.issuer = decodeIssuer(map)
+            fields.subject = decodeSubject(map)
+            fields.notBefore = decodeNotBefore(map)
+            fields.notAfter = decodeNotAfter(map)
+            fields.extensions = decodeExtensions(map)
+            fields.rfu = decodeRFU(map)
 
 
             // TODO more things to decode
@@ -474,12 +524,12 @@ class CertificateInfo {
             //
             //                }
             //            }
-            return certInfo
+            return CertificateInfo(fields)
         }
 
         @Throws(DataItemDecoderException::class)
-        private fun decodeCertificate(map: co.nstant.`in`.cbor.model.Map?): X509Certificate {
-            val certificateDI = map!![RequiredCertificateInfoKey.CERTIFICATE.getUnicodeString()]
+        private fun decodeCertificate(map: co.nstant.`in`.cbor.model.Map): X509Certificate {
+            val certificateDI = map[RequiredCertificateInfoKey.CERTIFICATE.getUnicodeString()]
             if (certificateDI !is ByteString) {
                 throw DataItemDecoderException(certificateDI.javaClass.typeName)
             }
@@ -498,9 +548,9 @@ class CertificateInfo {
             return signingCert
         }
 
-        private fun decodeSerialNumber(map: co.nstant.`in`.cbor.model.Map?): BigInteger {
+        private fun decodeSerialNumber(map: co.nstant.`in`.cbor.model.Map): BigInteger {
             val certificateDI =
-                map!![RequiredCertificateInfoKey.SERIAL_NUMBER.getUnicodeString()] as? ByteString
+                map[RequiredCertificateInfoKey.SERIAL_NUMBER.getUnicodeString()] as? ByteString
                     ?: // TODO refactor ot better exception
                     throw RuntimeException()
             if (!certificateDI.hasTag() || certificateDI.tag.value != TAG_BIGUINT.toLong()) {
@@ -510,9 +560,9 @@ class CertificateInfo {
             return BigInteger(1, certificateDI.bytes)
         }
 
-        private fun decodeSki(map: co.nstant.`in`.cbor.model.Map?): ByteArray {
+        private fun decodeSki(map: co.nstant.`in`.cbor.model.Map): ByteArray {
             val certificateDI =
-                map!![RequiredCertificateInfoKey.SKI.getUnicodeString()] as? ByteString
+                map[RequiredCertificateInfoKey.SKI.getUnicodeString()] as? ByteString
                     ?: // TODO refactor or better exception
                     throw RuntimeException()
 
@@ -521,11 +571,9 @@ class CertificateInfo {
         }
 
         @Throws(CertificateException::class)
-        private fun decodeDocType(map: co.nstant.`in`.cbor.model.Map?): Set<String?> {
-            val docTypeDI = map!![RequiredCertificateInfoKey.DOC_TYPE.getUnicodeString()] as? Array
-                ?: // TODO refactor to better exception
-                throw RuntimeException()
-            val docTypes: MutableSet<String?> = HashSet()
+        private fun decodeDocType(map: co.nstant.`in`.cbor.model.Map): Set<String> {
+            val docTypeDI = map[RequiredCertificateInfoKey.DOC_TYPE.getUnicodeString()] as Array
+            val docTypes: MutableSet<String> = HashSet()
             val dataItems: List<*> = docTypeDI.dataItems
             for (dataItem in dataItems) {
                 if (dataItem !is UnicodeString) {
@@ -541,10 +589,10 @@ class CertificateInfo {
             return docTypes
         }
 
-        private fun decodeCertificateProfile(map: co.nstant.`in`.cbor.model.Map?): MutableSet<String> {
+        private fun decodeCertificateProfile(map: co.nstant.`in`.cbor.model.Map): MutableSet<String> {
             val certificateProfiles: MutableSet<String> = HashSet()
             val certificateProfileDI =
-                map!![OptionalCertificateInfoKey.CERTIFICATE_PROFILE.getUnicodeString()]
+                map[OptionalCertificateInfoKey.CERTIFICATE_PROFILE.getUnicodeString()]
                     ?: return certificateProfiles
             if (certificateProfileDI !is Array) {
                 // TODO refactor to better exception
@@ -562,9 +610,9 @@ class CertificateInfo {
             return certificateProfiles
         }
 
-        private fun decodeIssuingAuthority(map: co.nstant.`in`.cbor.model.Map?): String? {
+        private fun decodeIssuingAuthority(map: co.nstant.`in`.cbor.model.Map): String? {
             val issuingAuthorityDI =
-                (map!![OptionalCertificateInfoKey.ISSUING_AUTHORITY.getUnicodeString()]
+                (map[OptionalCertificateInfoKey.ISSUING_AUTHORITY.getUnicodeString()]
                     ?: return null) as? UnicodeString
                     ?: // TODO refactor ot better exception
                     throw RuntimeException()
@@ -572,9 +620,9 @@ class CertificateInfo {
             return issuingAuthority.string
         }
 
-        private fun decodeIssuingCountry(map: co.nstant.`in`.cbor.model.Map?): String? {
+        private fun decodeIssuingCountry(map: co.nstant.`in`.cbor.model.Map): String? {
             val issuingCountryDI =
-                (map!![OptionalCertificateInfoKey.ISSUING_COUNTRY.getUnicodeString()]
+                (map[OptionalCertificateInfoKey.ISSUING_COUNTRY.getUnicodeString()]
                     ?: return null) as? UnicodeString
                     ?: // TODO refactor ot better exception
                     throw RuntimeException()
@@ -587,8 +635,8 @@ class CertificateInfo {
             return issuingCountryStr
         }
 
-        private fun decodeStateOrProvinceName(map: co.nstant.`in`.cbor.model.Map?): String? {
-            val issuingStateOrProvinceNameDI = (map!!
+        private fun decodeStateOrProvinceName(map: co.nstant.`in`.cbor.model.Map): String? {
+            val issuingStateOrProvinceNameDI = (map
                 .get(OptionalCertificateInfoKey.STATE_OR_PROVINCE_NAME.getUnicodeString())
                 ?: return null) as? UnicodeString
                 ?: // TODO refactor ot better exception
@@ -598,45 +646,45 @@ class CertificateInfo {
             return issuingStateOrProvinceName.string
         }
 
-        private fun decodeIssuer(map: co.nstant.`in`.cbor.model.Map?): ByteArray? {
-            val issuerDI = (map!![OptionalCertificateInfoKey.ISSUER.getUnicodeString()]
+        private fun decodeIssuer(map: co.nstant.`in`.cbor.model.Map): ByteArray? {
+            val issuerDI = (map[OptionalCertificateInfoKey.ISSUER.getUnicodeString()]
                 ?: return null) as? ByteString
                 ?: // TODO refactor ot better exception
                 throw RuntimeException()
             return issuerDI.bytes
         }
 
-        private fun decodeSubject(map: co.nstant.`in`.cbor.model.Map?): ByteArray? {
-            val subjectDI = (map!![OptionalCertificateInfoKey.ISSUER.getUnicodeString()]
+        private fun decodeSubject(map: co.nstant.`in`.cbor.model.Map): ByteArray? {
+            val subjectDI = (map[OptionalCertificateInfoKey.ISSUER.getUnicodeString()]
                 ?: return null) as? ByteString
                 ?: // TODO refactor ot better exception
                 throw RuntimeException()
             return subjectDI.bytes
         }
 
-        private fun decodeNotBefore(map: co.nstant.`in`.cbor.model.Map?): Instant? {
-            val tdateDI = map!![OptionalCertificateInfoKey.NOT_BEFORE.getUnicodeString()]
+        private fun decodeNotBefore(map: co.nstant.`in`.cbor.model.Map): Instant? {
+            val tdateDI = map[OptionalCertificateInfoKey.NOT_BEFORE.getUnicodeString()]
                 ?: return null
             return Util.parseTDate(tdateDI)
         }
 
-        private fun decodeNotAfter(map: co.nstant.`in`.cbor.model.Map?): Instant? {
-            val tdateDI = map!![OptionalCertificateInfoKey.NOT_AFTER.getUnicodeString()]
+        private fun decodeNotAfter(map: co.nstant.`in`.cbor.model.Map): Instant? {
+            val tdateDI = map[OptionalCertificateInfoKey.NOT_AFTER.getUnicodeString()]
                 ?: return null
             return Util.parseTDate(tdateDI)
         }
 
         @Throws(DataItemDecoderException::class)
-        private fun decodeExtensions(map: co.nstant.`in`.cbor.model.Map?): co.nstant.`in`.cbor.model.Map? {
+        private fun decodeExtensions(map: co.nstant.`in`.cbor.model.Map): co.nstant.`in`.cbor.model.Map? {
             val extensionsDI =
-                map!![OptionalCertificateInfoKey.EXTENSIONS.getUnicodeString()] ?: return null
+                map[OptionalCertificateInfoKey.EXTENSIONS.getUnicodeString()] ?: return null
             return Util.toVicalCompatibleMap("extensions", extensionsDI)
         }
 
         @Throws(DataItemDecoderException::class)
-        private fun decodeRFU(map: co.nstant.`in`.cbor.model.Map?): co.nstant.`in`.cbor.model.Map {
+        private fun decodeRFU(map: co.nstant.`in`.cbor.model.Map): co.nstant.`in`.cbor.model.Map {
             val rfu = co.nstant.`in`.cbor.model.Map()
-            KEYS@ for (key in map!!.keys) {
+            KEYS@ for (key in map.keys) {
                 if (key !is UnicodeString) {
                     throw DataItemDecoderException("key in RFU is not of type UnicodeString")
                 }
@@ -662,65 +710,44 @@ class CertificateInfo {
         }
     }
 
-    private var version: String? = null
-    private var certificate: X509Certificate
-    private var serialNumber: BigInteger
-    private var ski: ByteArray
-    private var docTypes: Set<String?>
+    //    private var version: String? = null
+//    private var certificate: X509Certificate
+//    private var serialNumber: BigInteger
+//    private var ski: ByteArray
+//    private var docTypes: Set<String?>
+//
+//    // optional (nullable) fields, copied from certificate
+//    private var certificateProfile: MutableSet<String> = HashSet()
+//    private var issuingCountry: String? = null
+//    private var stateOrProvinceName: String? = null
+//    private var issuer: ByteArray? = null
+//    private var subject: ByteArray? = null
+//    private var notBefore: Instant? = null
+//    private var notAfter: Instant? = null
+//
+//    // optional (nullable) field, provided separately
+//    private var issuingAuthority: String? = null
+//
+//    // lazy instantiation, null means no extensions (as it is an optional keyed field)
+//    private var extensions: co.nstant.`in`.cbor.model.Map? = null
+//
+//    // always instantiated, empty means no RFU
+//    private var rfu: co.nstant.`in`.cbor.model.Map
 
-    // optional (nullable) fields, copied from certificate
-    private var certificateProfile: MutableSet<String> = HashSet()
-    private var issuingCountry: String? = null
-    private var stateOrProvinceName: String? = null
-    private var issuer: ByteArray? = null
-    private var subject: ByteArray? = null
-    private var notBefore: Instant? = null
-    private var notAfter: Instant? = null
+    val version: String?
+        get() {
+            return fields.version
+        }
 
-    // optional (nullable) field, provided separately
-    private var issuingAuthority: String? = null
+    val certificate: X509Certificate
+        get() {
+            return fields.certificate
+        }
 
-    // lazy instantiation, null means no extensions (as it is an optional keyed field)
-    private var extensions: co.nstant.`in`.cbor.model.Map? = null
-
-    // always instantiated, empty means no RFU
-    private var rfu: co.nstant.`in`.cbor.model.Map
-
-    private constructor(cert: X509Certificate, docTypes: Set<String?>) {
-        version = "1.0"
-        certificate = cert
-        serialNumber = cert.serialNumber
-        ski = getSubjectPublicKeyIdentifier(cert)
-        this.docTypes = docTypes
-        rfu = co.nstant.`in`.cbor.model.Map()
-    }
-
-    private constructor(
-        cert: X509Certificate,
-        serialNumber: BigInteger,
-        ski: ByteArray,
-        docType: Set<String?>
-    ) {
-        certificate = cert
-        this.serialNumber = serialNumber
-        // clone not really necessary if non-public, but it won't hurt performance anyway
-        this.ski = ski.clone()
-        docTypes = docType
-        rfu = co.nstant.`in`.cbor.model.Map()
-    }
-
-    // TODO do we need a copy constructor + build method?
-    fun version(): String? {
-        return version
-    }
-
-    fun certificate(): X509Certificate {
-        return certificate
-    }
-
-    fun serialNumber(): BigInteger {
-        return serialNumber
-    }
+    val serialNumber: BigInteger?
+        get() {
+            return fields.serialNumber
+        }
 
     /**
      * Returns the subject public key field for the certificate;
@@ -728,62 +755,74 @@ class CertificateInfo {
      *
      * @return the SubjectPublicKeyInfo field
      */
-    fun ski(): ByteArray {
-        return ski.clone()
-    }
+    val ski: ByteArray
+        get() {
+            return fields.ski!!.clone()
+        }
 
-    fun docTypes(): Set<String?> {
-        return docTypes
-    }
+    val docTypes: Set<String>
+        get() {
+            return fields.docTypes
+        }
 
-    fun certificateProfile(): Set<String> {
-        return certificateProfile
-    }
+    val certificateProfile: Set<String>
+        get() {
+            return fields.certificateProfile
+        }
 
-    fun issuingAuthority(): String? {
-        return issuingAuthority
-    }
+    val issuingAuthority: String?
+        get() {
+            return fields.issuingAuthority
+        }
 
-    fun issuingCountry(): String? {
-        return issuingCountry
-    }
+    val issuingCountry: String?
+        get() {
+            return fields.issuingCountry
+        }
 
-    fun stateOrProvinceName(): String? {
-        return stateOrProvinceName
-    }
+    val stateOrProvinceName: String?
+        get() {
+            return fields.stateOrProvinceName
+        }
 
-    fun issuer(): ByteArray? {
-        return issuer
-    }
+    val issuer: ByteArray?
+        get() {
+            return fields.issuer
+        }
 
-    fun subject(): ByteArray? {
-        return subject
-    }
+    val subject: ByteArray?
+        get() {
+            return fields.subject
+        }
 
-    fun notBefore(): Instant? {
-        return notBefore
-    }
+    val notBefore: Instant?
+        get() {
+            return fields.notBefore
+        }
 
-    fun notAfter(): Instant? {
-        return notAfter
-    }
+    val notAfter: Instant?
+        get() {
+            return fields.notAfter
+        }
 
     /**
      * Returns empty or a map of extensions.
      * This map may still be empty if the CertificateInfo structure was encoded as such.
      * @return empty
      */
-    fun extensions(): co.nstant.`in`.cbor.model.Map? {
-        return extensions
-    }
+    val extensions: co.nstant.`in`.cbor.model.Map?
+        get() {
+           return fields.extensions
+        }
 
     /**
      * Returns a possibly empty map of RFU values, i.e. any key that is not defined in the current version 1 of the standard.
      * @return a map of all the undefined key / value pairs in the CertificateInfo structure
      */
-    fun rfu(): co.nstant.`in`.cbor.model.Map {
-        return rfu
-    }
+    val rfu: co.nstant.`in`.cbor.model.Map
+        get() {
+            return fields.rfu
+        }
 
     /**
      * Returns a multi-line description of this CertificateInfo instance.
@@ -834,7 +873,7 @@ class CertificateInfo {
         val notAfterString = if (notAfter == null) "<none>" else Util.visualTDate(notAfter)
         sb.append(String.format("notAfter: %s%n", notAfterString))
         sb.append(String.format("extensions: %s%n", extensions))
-        sb.append(String.format("any: %s%n", rfu()))
+        sb.append(String.format("any: %s%n", rfu))
         return sb.toString()
     }
 

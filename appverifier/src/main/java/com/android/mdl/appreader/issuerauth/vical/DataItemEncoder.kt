@@ -11,7 +11,7 @@ import co.nstant.`in`.cbor.model.DataItem
  * @param <DI>
  * @param <T>
 </T></DI> */
-interface DataItemEncoder<DI : DataItem?, T> {
+interface DataItemEncoder<DI : DataItem, T> {
     /**
      * Encodes the provided data of type T into a DataItem of type DI.
      *
@@ -20,13 +20,7 @@ interface DataItemEncoder<DI : DataItem?, T> {
      */
     fun encode(t: T): DI
 
-    /**
-     *
-     *
-     * @param t
-     * @return
-     */
-    fun encodeToBytes(t: T): ByteArray? {
+    fun encodeToBytes(t: T): ByteArray {
         val di = encode(t)
         return IdentityUtil.cborEncode(di)
     }
